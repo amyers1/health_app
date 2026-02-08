@@ -1,0 +1,5 @@
+{
+  "name": "VitalStream Health Dashboard",
+  "description": "A modern, dark-mode mobile-optimized health dashboard for tracking activity, physiological metrics, and body composition data aggregated from Apple Health and other sensors.",
+  "requestFramePermissions": []
+}

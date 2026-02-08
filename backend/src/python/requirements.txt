@@ -1,0 +1,4 @@
+fastapi
+uvicorn
+influxdb3-python
+python-dotenv
