@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 	"time"
@@ -14,7 +15,7 @@ import (
 var easternZone, _ = time.LoadLocation("America/New_York")
 
 type InfluxDBStore struct {
-	client influxdb3.Client
+	client *influxdb3.Client
 	bucket string
 	org    string
 }
@@ -26,29 +27,22 @@ func NewInfluxDBStore() (*InfluxDBStore, error) {
 	bucket := os.Getenv("INFLUX_DATABASE")
 
 	// For Debug
-    log.Printf("Connecting to InfluxDB at: %s (org: %s, bucket: %s)", url, org, bucket)
+	log.Printf("Connecting to InfluxDB at: %s (org: %s, bucket: %s)", url, org, bucket)
 
 	if url == "" || token == "" || org == "" || bucket == "" {
 		return nil, fmt.Errorf("INFLUX_HOST, INFLUX_TOKEN, INFLUX_ORG, and INFLUX_DATABASE must be set")
 	}
 
 	client, err := influxdb3.New(influxdb3.ClientConfig{
-        Host:       url,
-        Token:      token,
-        Database:   bucket,
-        Organization: org,
-    })
+		Host:         url,
+		Token:        token,
+		Database:     bucket,
+		Organization: org,
+	})
 
-    defer func(client *influxdb3.Client) {
-        err := client.Close()
-        if err != nil {
-            panic(err)
-        }
-    }(client)
-
-    if(err != nil) {
-        panic(err)
-    }
+	if err != nil {
+		return nil, fmt.Errorf("failed to create InfluxDB client: %w", err)
+	}
 
 	return &InfluxDBStore{
 		client: client,
@@ -58,23 +52,63 @@ func NewInfluxDBStore() (*InfluxDBStore, error) {
 }
 
 func (s *InfluxDBStore) Close() {
-	s.client.Close()
+	if s.client != nil {
+		s.client.Close()
+	}
 }
 
 func (s *InfluxDBStore) Ingest(metrics []model.Metric) error {
-	writeAPI := s.client.WriteAPIBlocking(s.org, s.bucket)
+	// Convert metrics to line protocol format
+	var lineProtocol string
 	for _, m := range metrics {
-		p := influxdb3.NewPoint(m.Measurement, m.Tags, m.Fields, m.Timestamp)
-		if err := writeAPI.WritePoint(context.Background(), p); err != nil {
-			return err
+		// Build tags string
+		tagStr := ""
+		for k, v := range m.Tags {
+			if tagStr != "" {
+				tagStr += ","
+			}
+			tagStr += fmt.Sprintf("%s=%s", k, v)
 		}
+
+		// Build fields string
+		fieldStr := ""
+		for k, v := range m.Fields {
+			if fieldStr != "" {
+				fieldStr += ","
+			}
+			switch val := v.(type) {
+			case string:
+				fieldStr += fmt.Sprintf(`%s="%s"`, k, val)
+			case float64:
+				fieldStr += fmt.Sprintf("%s=%f", k, val)
+			case int64:
+				fieldStr += fmt.Sprintf("%s=%di", k, val)
+			case int:
+				fieldStr += fmt.Sprintf("%s=%di", k, val)
+			case bool:
+				fieldStr += fmt.Sprintf("%s=%t", k, val)
+			default:
+				fieldStr += fmt.Sprintf("%s=%v", k, val)
+			}
+		}
+
+		// Build line protocol: measurement[,tag=value...] field=value[,field=value...] [timestamp]
+		line := m.Measurement
+		if tagStr != "" {
+			line += "," + tagStr
+		}
+		line += " " + fieldStr
+		if !m.Timestamp.IsZero() {
+			line += fmt.Sprintf(" %d", m.Timestamp.UnixNano())
+		}
+		lineProtocol += line + "\n"
 	}
-	return nil
+
+	return s.client.Write(context.Background(), []byte(lineProtocol))
 }
 
-func (s *InfluxDBStore) query(ctx context.Context, query string) (*api.QueryTableResult, error) {
-	queryAPI := s.client.QueryAPI(s.org)
-	return queryAPI.Query(ctx, query)
+func (s *InfluxDBStore) query(ctx context.Context, query string) (*influxdb3.QueryIterator, error) {
+	return s.client.Query(ctx, query)
 }
 
 func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
@@ -93,10 +127,10 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 	}
 
 	for result.Next() {
-		record := result.Record()
-		metric, okMetric := record.ValueByKey("metric").(string)
-		source, _ := record.ValueByKey("source").(string)
-		value := record.ValueByKey("value")
+		record := result.Value()
+		metric, okMetric := record["metric"].(string)
+		source, _ := record["source"].(string)
+		value := record["value"]
 
 		if !okMetric || value == nil {
 			continue
@@ -155,8 +189,9 @@ ORDER BY bucket`, start, stop)
 
 	var values []model.TimeSeriesValue
 	for result.Next() {
-		val, okVal := result.Record().ValueByKey("value").(float64)
-		t, okTime := result.Record().ValueByKey("bucket").(time.Time)
+		record := result.Value()
+		val, okVal := record["value"].(float64)
+		t, okTime := record["bucket"].(time.Time)
 		if okVal && okTime {
 			values = append(values, model.TimeSeriesValue{
 				Time:  t.In(easternZone).Format("15:04"),
@@ -182,10 +217,10 @@ ORDER BY time ASC`, start, stop)
 
 	var bps []model.BloodPressure
 	for result.Next() {
-		record := result.Record()
-		systolic, okSys := record.ValueByKey("systolic").(int64)
-		diastolic, okDia := record.ValueByKey("diastolic").(int64)
-		t, okTime := record.ValueByKey("time").(time.Time)
+		record := result.Value()
+		systolic, okSys := record["systolic"].(int64)
+		diastolic, okDia := record["diastolic"].(int64)
+		t, okTime := record["time"].(time.Time)
 
 		if okSys && okDia && okTime {
 			bp := model.BloodPressure{
@@ -215,8 +250,9 @@ ORDER BY time ASC`, start, stop)
 
 	var glucoses []model.Glucose
 	for result.Next() {
-		value, okVal := result.Record().ValueByKey("value").(float64)
-		t, okTime := result.Record().ValueByKey("time").(time.Time)
+		record := result.Value()
+		value, okVal := record["value"].(float64)
+		t, okTime := record["time"].(time.Time)
 		if okVal && okTime {
 			glucoses = append(glucoses, model.Glucose{
 				Time:  t.In(easternZone).Format("Jan 02"),
@@ -242,12 +278,12 @@ ORDER BY time ASC`, start, stop)
 
 	var sleeps []model.Sleep
 	for result.Next() {
-		record := result.Record()
-		t, okTime := record.ValueByKey("time").(time.Time)
-		total, okTotal := record.ValueByKey("totalSleep").(float64)
-		deep, okDeep := record.ValueByKey("deep").(float64)
-		rem, okRem := record.ValueByKey("rem").(float64)
-		light, okLight := record.ValueByKey("core").(float64)
+		record := result.Value()
+		t, okTime := record["time"].(time.Time)
+		total, okTotal := record["totalSleep"].(float64)
+		deep, okDeep := record["deep"].(float64)
+		rem, okRem := record["rem"].(float64)
+		light, okLight := record["core"].(float64)
 
 		if okTime && okTotal && okDeep && okRem && okLight {
 			sleeps = append(sleeps, model.Sleep{
@@ -280,12 +316,12 @@ ORDER BY time ASC`, start, stop)
 	workoutsMap := make(map[string]model.Workout)
 	var workoutIDs []string
 	for result.Next() {
-		record := result.Record()
-		workoutID, _ := record.ValueByKey("workout_id").(string)
-		t, _ := record.ValueByKey("time").(time.Time)
-		name, _ := record.ValueByKey("workout_name").(string)
-		duration, _ := record.ValueByKey("duration").(int64)
-		calories, _ := record.ValueByKey("active_energy_value").(int64)
+		record := result.Value()
+		workoutID, _ := record["workout_id"].(string)
+		t, _ := record["time"].(time.Time)
+		name, _ := record["workout_name"].(string)
+		duration, _ := record["duration"].(int64)
+		calories, _ := record["active_energy_value"].(int64)
 
 		workoutsMap[workoutID] = model.Workout{
 			ID:       workoutID,
@@ -313,9 +349,9 @@ ORDER BY time ASC`, start, stop)
 	}
 
 	for hrResult.Next() {
-		record := hrResult.Record()
-		workoutID, _ := record.ValueByKey("workout_id").(string)
-		avgHr, _ := record.ValueByKey("avg_hr").(float64)
+		record := hrResult.Value()
+		workoutID, _ := record["workout_id"].(string)
+		avgHr, _ := record["avg_hr"].(float64)
 
 		if workout, ok := workoutsMap[workoutID]; ok {
 			workout.AvgHr = int(avgHr)
@@ -342,110 +378,110 @@ type dailyNutrient struct {
 }
 
 func (s *InfluxDBStore) GetDietaryTrends(endDate string) ([]model.DietaryTrend, error) {
-    _, stop := getDaysRange(endDate, 90)
-    trendStart, _ := getDaysRange(endDate, 97)
+	_, stop := getDaysRange(endDate, 90)
+	trendStart, _ := getDaysRange(endDate, 97)
 
-    nutrients := []string{"dietary_energy", "protein", "carbohydrates", "total_fat"}
+	nutrients := []string{"dietary_energy", "protein", "carbohydrates", "total_fat"}
 
-    // 1. Fetch all raw data points
-    dailyData := make(map[string]*dailyNutrient)
+	// 1. Fetch all raw data points
+	dailyData := make(map[string]*dailyNutrient)
 
-    for _, nutrient := range nutrients {
-        queryRangeStart := trendStart
+	for _, nutrient := range nutrients {
+		queryRangeStart := trendStart
 
-        sqlQuery := fmt.Sprintf(`SELECT time, qty FROM "%s" WHERE time >= '%s' AND time <= '%s'`, nutrient, queryRangeStart, stop)
+		sqlQuery := fmt.Sprintf(`SELECT time, qty FROM "%s" WHERE time >= '%s' AND time <= '%s'`, nutrient, queryRangeStart, stop)
 
-        result, err := s.query(context.Background(), sqlQuery)
-        if err != nil {
-            return nil, fmt.Errorf("failed to query nutrient %s: %w", nutrient, err)
-        }
+		result, err := s.query(context.Background(), sqlQuery)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query nutrient %s: %w", nutrient, err)
+		}
 
-        for result.Next() {
-            t, _ := result.Record().ValueByKey("time").(time.Time)
-            value, _ := result.Record().ValueByKey("qty").(float64)
+		for result.Next() {
+			record := result.Value()
+			t, _ := record["time"].(time.Time)
+			value, _ := record["qty"].(float64)
 
-            dayStr := t.In(easternZone).Format("2006-01-02")
-            if _, ok := dailyData[dayStr]; !ok {
-                dailyData[dayStr] = &dailyNutrient{}
-            }
+			dayStr := t.In(easternZone).Format("2006-01-02")
+			if _, ok := dailyData[dayStr]; !ok {
+				dailyData[dayStr] = &dailyNutrient{}
+			}
 
-            switch nutrient {
-            case "dietary_energy":
-                dailyData[dayStr].calories += value
-            case "protein":
-                dailyData[dayStr].protein += value
-            case "carbohydrates":
-                dailyData[dayStr].carbs += value
-            case "total_fat":
-                dailyData[dayStr].fat += value
-            }
-        }
-        if result.Err() != nil {
-            return nil, result.Err()
-        }
-    }
+			switch nutrient {
+			case "dietary_energy":
+				dailyData[dayStr].calories += value
+			case "protein":
+				dailyData[dayStr].protein += value
+			case "carbohydrates":
+				dailyData[dayStr].carbs += value
+			case "total_fat":
+				dailyData[dayStr].fat += value
+			}
+		}
+		if result.Err() != nil {
+			return nil, result.Err()
+		}
+	}
 
-    // 2. Calculate rolling average for trend
-    var sortedDays []string
-    for dayStr := range dailyData {
-        sortedDays = append(sortedDays, dayStr)
-    }
-    sort.Strings(sortedDays)
+	// 2. Calculate rolling average for trend
+	var sortedDays []string
+	for dayStr := range dailyData {
+		sortedDays = append(sortedDays, dayStr)
+	}
+	sort.Strings(sortedDays)
 
-    trendValues := make(map[string]float64)
-    calorieHistory := []float64{}
-    dayHistory := []string{}
+	trendValues := make(map[string]float64)
+	calorieHistory := []float64{}
+	dayHistory := []string{}
 
-    for _, dayStr := range sortedDays {
-        calorieHistory = append(calorieHistory, dailyData[dayStr].calories)
-        dayHistory = append(dayHistory, dayStr)
-        if len(calorieHistory) > 7 {
-            calorieHistory = calorieHistory[1:]
-            dayHistory = dayHistory[1:]
-        }
+	for _, dayStr := range sortedDays {
+		calorieHistory = append(calorieHistory, dailyData[dayStr].calories)
+		dayHistory = append(dayHistory, dayStr)
+		if len(calorieHistory) > 7 {
+			calorieHistory = calorieHistory[1:]
+			dayHistory = dayHistory[1:]
+		}
 
-        sum := 0.0
-        for _, v := range calorieHistory {
-            sum += v
-        }
+		sum := 0.0
+		for _, v := range calorieHistory {
+			sum += v
+		}
 
-        if len(calorieHistory) >= 3 {
-            trendValues[dayStr] = sum / float64(len(calorieHistory))
-        }
-    }
+		if len(calorieHistory) >= 3 {
+			trendValues[dayStr] = sum / float64(len(calorieHistory))
+		}
+	}
 
-    // 3. Build final response
-    var trends []model.DietaryTrend
-    var lastTrend float64 = 0
+	// 3. Build final response
+	var trends []model.DietaryTrend
+	var lastTrend float64 = 0
 
-    endDateT, _ := time.ParseInLocation("2006-01-02", endDate, easternZone)
-    startDateT := endDateT.AddDate(0, 0, -89)
+	endDateT, _ := time.ParseInLocation("2006-01-02", endDate, easternZone)
+	startDateT := endDateT.AddDate(0, 0, -89)
 
-    for d := startDateT; !d.After(endDateT); d = d.AddDate(0, 0, 1) {
-        dayStr := d.Format("2006-01-02")
+	for d := startDateT; !d.After(endDateT); d = d.AddDate(0, 0, 1) {
+		dayStr := d.Format("2006-01-02")
 
-        data := &dailyNutrient{}
-        if val, ok := dailyData[dayStr]; ok {
-            data = val
-        }
+		data := &dailyNutrient{}
+		if val, ok := dailyData[dayStr]; ok {
+			data = val
+		}
 
-        if trend, ok := trendValues[dayStr]; ok {
-            lastTrend = trend
-        }
+		if trend, ok := trendValues[dayStr]; ok {
+			lastTrend = trend
+		}
 
-        trends = append(trends, model.DietaryTrend{
-            Date:     d.Format("Jan 02"),
-            Calories: data.calories,
-            Protein:  data.protein,
-            Carbs:    data.carbs,
-            Fat:      data.fat,
-            Trend:    lastTrend,
-        })
-    }
+		trends = append(trends, model.DietaryTrend{
+			Date:     d.Format("Jan 02"),
+			Calories: data.calories,
+			Protein:  data.protein,
+			Carbs:    data.carbs,
+			Fat:      data.fat,
+			Trend:    lastTrend,
+		})
+	}
 
-    return trends, nil
+	return trends, nil
 }
-
 
 func (s *InfluxDBStore) GetDietaryMealsToday(date string) ([]model.Meal, error) {
 	// The schema does not clearly support this query. Returning placeholder data.
@@ -467,9 +503,11 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 	if err != nil {
 		return nil, err
 	}
+
 	for weightResult.Next() {
-		t, _ := weightResult.Record().ValueByKey("time").(time.Time)
-		weight, _ := weightResult.Record().ValueByKey("weight").(float64)
+		record := weightResult.Value()
+		t, _ := record["time"].(time.Time)
+		weight, _ := record["weight"].(float64)
 
 		dateStr := t.In(easternZone).Format("Jan 02")
 		if _, ok := compositionMap[dateStr]; !ok {
@@ -485,9 +523,11 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 	if err != nil {
 		return nil, err
 	}
+
 	for bfResult.Next() {
-		t, _ := bfResult.Record().ValueByKey("time").(time.Time)
-		bodyFat, _ := bfResult.Record().ValueByKey("bodyFat").(float64)
+		record := bfResult.Value()
+		t, _ := record["time"].(time.Time)
+		bodyFat, _ := record["bodyFat"].(float64)
 		dateStr := t.In(easternZone).Format("Jan 02")
 		if comp, ok := compositionMap[dateStr]; ok {
 			comp.BodyFat = bodyFat

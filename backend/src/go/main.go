@@ -22,7 +22,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create InfluxDB store: %v", err)
 	}
-	defer influxStore.Close()
+	defer func() {
+		log.Println("Closing InfluxDB connection...")
+		influxStore.Close()
+	}()
 
 	h := handler.NewHandler(influxStore)
 
