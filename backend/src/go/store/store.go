@@ -8,14 +8,13 @@ import (
 	"time"
 	"health_app/api/model"
 
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	"github.com/influxdata/influxdb-client-go/v2/api"
+	"github.com/InfluxCommunity/influxdb3-go/v2/influxdb3"
 )
 
 var easternZone, _ = time.LoadLocation("America/New_York")
 
 type InfluxDBStore struct {
-	client influxdb2.Client
+	client influxdb3.Client
 	bucket string
 	org    string
 }
@@ -26,15 +25,30 @@ func NewInfluxDBStore() (*InfluxDBStore, error) {
 	org := os.Getenv("INFLUX_ORG")
 	bucket := os.Getenv("INFLUX_DATABASE")
 
+	// For Debug
+    log.Printf("Connecting to InfluxDB at: %s (org: %s, bucket: %s)", url, org, bucket)
+
 	if url == "" || token == "" || org == "" || bucket == "" {
 		return nil, fmt.Errorf("INFLUX_HOST, INFLUX_TOKEN, INFLUX_ORG, and INFLUX_DATABASE must be set")
 	}
 
-	client := influxdb2.NewClient(url, token)
-	_, err := client.Health(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to InfluxDB: %w", err)
-	}
+	client, err := influxdb3.New(influxdb3.ClientConfig{
+        Host:       url,
+        Token:      token,
+        Database:   bucket,
+        Organization: org,
+    })
+
+    defer func(client *influxdb3.Client) {
+        err := client.Close()
+        if err != nil {
+            panic(err)
+        }
+    }(client)
+
+    if(err != nil) {
+        panic(err)
+    }
 
 	return &InfluxDBStore{
 		client: client,
@@ -50,7 +64,7 @@ func (s *InfluxDBStore) Close() {
 func (s *InfluxDBStore) Ingest(metrics []model.Metric) error {
 	writeAPI := s.client.WriteAPIBlocking(s.org, s.bucket)
 	for _, m := range metrics {
-		p := influxdb2.NewPoint(m.Measurement, m.Tags, m.Fields, m.Timestamp)
+		p := influxdb3.NewPoint(m.Measurement, m.Tags, m.Fields, m.Timestamp)
 		if err := writeAPI.WritePoint(context.Background(), p); err != nil {
 			return err
 		}
