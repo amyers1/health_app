@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 	"health_app/api/model"
@@ -31,11 +32,13 @@ func NewHandler(store Store) *Handler {
 func (h *Handler) HandleIngest(w http.ResponseWriter, r *http.Request) {
 	var req model.IngestRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if err := h.store.Ingest(req.Metrics); err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -47,6 +50,7 @@ func (h *Handler) HandleGetSummary(w http.ResponseWriter, r *http.Request) {
 	date := getDateQueryParam(r)
 	summary, err := h.store.GetSummary(date)
 	if err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -57,6 +61,7 @@ func (h *Handler) HandleGetVitalsHR(w http.ResponseWriter, r *http.Request) {
 	date := getDateQueryParam(r)
 	hr, err := h.store.GetVitalsHR(date)
 	if err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -67,6 +72,7 @@ func (h *Handler) HandleGetVitalsBP(w http.ResponseWriter, r *http.Request) {
 	endDate := getEndDateQueryParam(r)
 	bp, err := h.store.GetVitalsBP(endDate)
 	if err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -77,6 +83,7 @@ func (h *Handler) HandleGetVitalsGlucose(w http.ResponseWriter, r *http.Request)
 	endDate := getEndDateQueryParam(r)
 	glucose, err := h.store.GetVitalsGlucose(endDate)
 	if err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -87,6 +94,7 @@ func (h *Handler) HandleGetSleep(w http.ResponseWriter, r *http.Request) {
 	endDate := getEndDateQueryParam(r)
 	sleep, err := h.store.GetSleep(endDate)
 	if err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -97,6 +105,7 @@ func (h *Handler) HandleGetWorkouts(w http.ResponseWriter, r *http.Request) {
 	date := getDateQueryParam(r)
 	workouts, err := h.store.GetWorkouts(date)
 	if err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -107,6 +116,7 @@ func (h *Handler) HandleGetDietaryTrends(w http.ResponseWriter, r *http.Request)
 	endDate := getEndDateQueryParam(r)
 	trends, err := h.store.GetDietaryTrends(endDate)
 	if err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -117,6 +127,7 @@ func (h *Handler) HandleGetDietaryMealsToday(w http.ResponseWriter, r *http.Requ
 	date := getDateQueryParam(r)
 	meals, err := h.store.GetDietaryMealsToday(date)
 	if err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -127,6 +138,7 @@ func (h *Handler) HandleGetBodyComposition(w http.ResponseWriter, r *http.Reques
 	endDate := getEndDateQueryParam(r)
 	bodyComp, err := h.store.GetBodyComposition(endDate)
 	if err != nil {
+		log.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

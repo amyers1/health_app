@@ -176,11 +176,10 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 func (s *InfluxDBStore) GetVitalsHR(date string) ([]model.TimeSeriesValue, error) {
 	start, stop := getDayRange(date)
 	sqlQuery := fmt.Sprintf(`
-SELECT time_bucket('10m', time) as bucket, avg("avg") as value
+SELECT time, "avg" as value
 FROM "heart_rate"
 WHERE time >= '%s' AND time < '%s'
-GROUP BY bucket
-ORDER BY bucket`, start, stop)
+ORDER BY time`, start, stop)
 
 	result, err := s.query(context.Background(), sqlQuery)
 	if err != nil {
@@ -191,7 +190,7 @@ ORDER BY bucket`, start, stop)
 	for result.Next() {
 		record := result.Value()
 		val, okVal := record["value"].(float64)
-		t, okTime := record["bucket"].(time.Time)
+		t, okTime := record["time"].(time.Time)
 		if okVal && okTime {
 			values = append(values, model.TimeSeriesValue{
 				Time:  t.In(easternZone).Format("15:04"),

@@ -65,51 +65,63 @@ const App: React.FC = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            const summaryPromise = fetch(
-                `/api/v1/summary?date=${selectedDate}`,
-            ).then((res) => res.json());
-            const hrPromise = fetch(
-                `/api/v1/vitals/hr?date=${selectedDate}`,
-            ).then((res) => res.json());
-            const bpPromise = fetch(
-                `/api/v1/vitals/bp?end_date=${selectedDate}`,
-            ).then((res) => res.json());
-            const glucosePromise = fetch(
-                `/api/v1/vitals/glucose?end_date=${selectedDate}`,
-            ).then((res) => res.json());
-            const workoutsPromise = fetch(
-                `/api/v1/workouts?date=${selectedDate}`,
-            ).then((res) => res.json());
-            const bodyPromise = fetch(
-                `/api/v1/body/composition?end_date=${selectedDate}`,
-            ).then((res) => res.json());
-            const sleepPromise = fetch(
-                `/api/v1/sleep?end_date=${selectedDate}`,
-            ).then((res) => res.json());
-            const dietPromise = fetch(
-                `/api/v1/dietary/trends?end_date=${selectedDate}`,
-            ).then((res) => res.json());
+            try {
+                const safeJson = (res: Response) => {
+                    if (!res.ok) {
+                        console.error("API Error:", res.status, res.statusText);
+                        return null;
+                    }
+                    return res.json();
+                };
 
-            const [summary, hr, bp, glucose, workouts, body, sleep, diet] =
-                await Promise.all([
-                    summaryPromise,
-                    hrPromise,
-                    bpPromise,
-                    glucosePromise,
-                    workoutsPromise,
-                    bodyPromise,
-                    sleepPromise,
-                    dietPromise,
-                ]);
+                const summaryPromise = fetch(
+                    `/api/v1/summary?date=${selectedDate}`,
+                ).then(safeJson);
+                const hrPromise = fetch(
+                    `/api/v1/vitals/hr?date=${selectedDate}`,
+                ).then(safeJson);
+                const bpPromise = fetch(
+                    `/api/v1/vitals/bp?end_date=${selectedDate}`,
+                ).then(safeJson);
+                const glucosePromise = fetch(
+                    `/api/v1/vitals/glucose?end_date=${selectedDate}`,
+                ).then(safeJson);
+                const workoutsPromise = fetch(
+                    `/api/v1/workouts?date=${selectedDate}`,
+                ).then(safeJson);
+                const bodyPromise = fetch(
+                    `/api/v1/body/composition?end_date=${selectedDate}`,
+                ).then(safeJson);
+                const sleepPromise = fetch(
+                    `/api/v1/sleep?end_date=${selectedDate}`,
+                ).then(safeJson);
+                const dietPromise = fetch(
+                    `/api/v1/dietary/trends?end_date=${selectedDate}`,
+                ).then(safeJson);
 
-            setSummary(summary);
-            setHrData(hr);
-            setBpData(bp);
-            setGlucoseData(glucose);
-            setWorkouts(workouts);
-            setBodyTrends(body);
-            setSleepHistory(sleep);
-            setDietaryTrends(diet);
+                const [summary, hr, bp, glucose, workouts, body, sleep, diet] =
+                    await Promise.all([
+                        summaryPromise,
+                        hrPromise,
+                        bpPromise,
+                        glucosePromise,
+                        workoutsPromise,
+                        bodyPromise,
+                        sleepPromise,
+                        dietPromise,
+                    ]);
+
+                setSummary(summary || null);
+                setHrData(hr || []);
+                setBpData(bp || []);
+                setGlucoseData(glucose || []);
+                setWorkouts(workouts || []);
+                setBodyTrends(body || []);
+                setSleepHistory(sleep || []);
+                setDietaryTrends(diet || []);
+            } catch (error) {
+                console.error("Failed to fetch data:", error);
+            }
         };
 
         fetchData();

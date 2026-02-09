@@ -1,24 +1,42 @@
 import os
+import polars as pl
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from fastapi import FastAPI, Query, Body
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
-from datetime import date, datetime
+import logging
+import sys
+
+load_dotenv()
+logging.basicConfig(level=logging.INFO)
+
 from influxdb3 import InfluxConnectorV3
 
 # --- Configuration ---
-INFLUXDB_URL = os.getenv("INFLUXDB_URL")
-INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN")
-INFLUXDB_ORG = os.getenv("INFLUXDB_ORG")
-INFLUXDB_DATABASE = os.getenv("INFLUXDB_DATABASE")
+INFLUX_HOST = os.getenv("INFLUX_HOST")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
+INFLUX_ORG = os.getenv("INFLUX_ORG")
+INFLUX_DATABASE = os.getenv("INFLUX_DATABASE")
 
 # --- InfluxDB Client ---
-# Use a placeholder if the env vars are not set
-if INFLUXDB_URL and INFLUXDB_TOKEN and INFLUXDB_ORG:
-    # Initialize V3 Connector
-    db = InfluxConnectorV3(INFLUX_HOST, INFLUX_TOKEN, INFLUX_ORG, INFLUX_DB)
+db = None
+if INFLUX_HOST and INFLUX_TOKEN and INFLUX_ORG and INFLUX_DATABASE:
+    try:
+        logging.info("Initializing InfluxDB client...")
+        db = InfluxConnectorV3(host=INFLUX_HOST, token=INFLUX_TOKEN, org=INFLUX_ORG, database=INFLUX_DATABASE)
+        logging.info("InfluxDB client initialized successfully.")
+    except Exception as e:
+        logging.error(f"Failed to initialize InfluxDB client: {e}")
+        sys.exit(1)
 else:
-    db = None # No client if config is missing
+    logging.warning("InfluxDB environment variables not set. Cannot initialize InfluxDB client.")
+
+if db is None:
+    logging.error("InfluxDB client is not initialized. Exiting.")
+    sys.exit(1)
+
 
 # --- FastAPI App ---
 app = FastAPI(
@@ -47,7 +65,7 @@ class SummaryResponse(BaseModel):
 
 class HeartRateResponse(BaseModel):
     time: str
-    value: int
+    value: float
 
 class BloodPressureResponse(BaseModel):
     time: str
@@ -121,7 +139,17 @@ async def get_summary(date: Optional[date] = Query(None)):
     """
 
     today = datetime.now(ZoneInfo("America/New_York")).date()
-    df = db.get_dataframe(sql_query).with_columns(pl.col('date').str.to_date('%Y-%m-%d')).filter(pl.col('date').eq(today))
+    df = db.get_dataframe(sql_query)
+    if df.is_empty():
+        return {
+            "steps": 0,
+            "distance": 0,
+            "activeCalories": 0,
+            "basalCalories": 0,
+            "dietaryCalories": 0
+        }
+
+    df = df.with_columns(pl.col('time').dt.date().alias('date')).filter(pl.col('date').eq(today))
 
     steps_query = df.filter((pl.col('metric')=='step_count') & (pl.col('source')=='RingConn')).select('value')
     distance_query = df.filter((pl.col('metric')=='walking_running_distance')).select('value')
@@ -182,9 +210,15 @@ async def get_blood_pressure(end_date: Optional[date] = Query(None)):
     today = datetime.now(ZoneInfo("America/New_York"))
     start = today.isoformat()
     if not end_date:
-        end = (today - timedelta(days=90)).isoformat()
+        end = (today - timedelta(days=30)).isoformat()
     else:
-        end = datetime.strptime(end_date, '%Y-%m-%d').isoformat()
+        if type(end_date) == str:
+            end = (datetime.strptime(end_date, '%Y-%m-%d')- timedelta(days=30)).isoformat()
+        else:
+            try:
+                end = (end_date - timedelta(days=30)).isoformat()
+            except Exception as e:
+                raise(e)
 
 
     # SQL Query
@@ -196,6 +230,9 @@ async def get_blood_pressure(end_date: Optional[date] = Query(None)):
     """
 
     df = db.get_dataframe(sql_query)
+    if df.is_empty():
+        logging.info(f"no data returned for blood_pressure...end_date={end_date}")
+        return []
     df = df.with_columns(
         pl.when((pl.col("systolic") > 180) | (pl.col("diastolic") > 120))
         .then(pl.lit("Hypertensive Crisis"))
@@ -218,9 +255,15 @@ async def get_glucose(end_date: Optional[date] = Query(None)):
     today = datetime.now(ZoneInfo("America/New_York"))
     start = today.isoformat()
     if not end_date:
-        end = (today - timedelta(days=90)).isoformat()
+        end = (today - timedelta(days=30)).isoformat()
     else:
-        end = datetime.strptime(end_date, '%Y-%m-%d').isoformat()
+        if type(end_date) == str:
+            end = (datetime.strptime(end_date, '%Y-%m-%d')- timedelta(days=30)).isoformat()
+        else:
+            try:
+                end = (end_date - timedelta(days=30)).isoformat()
+            except Exception as e:
+                raise(e)
 
     print (f'start = {start}; end = {end}')
 
@@ -233,6 +276,9 @@ async def get_glucose(end_date: Optional[date] = Query(None)):
     """
 
     df = db.get_dataframe(sql_query)
+    if df.is_empty():
+        logging.info(f"no data returned for blood_glucose...end_date={end_date}")
+        return []
     result = df.with_columns(pl.col('time').dt.strftime('%h %e')).rename({'qty':'value'}).select(['time', 'value']).to_dicts()
 
     return result
@@ -242,9 +288,15 @@ async def get_sleep(end_date: Optional[date] = Query(None)):
     today = datetime.now(ZoneInfo("America/New_York"))
     start = today.isoformat()
     if not end_date:
-        end = (today - timedelta(days=90)).isoformat()
+        end = (today - timedelta(days=7)).isoformat()
     else:
-        end = datetime.strptime(end_date, '%Y-%m-%d').isoformat()
+        if type(end_date) == str:
+            end = (datetime.strptime(end_date, '%Y-%m-%d')- timedelta(days=7)).isoformat()
+        else:
+            try:
+                end = (end_date - timedelta(days=7)).isoformat()
+            except Exception as e:
+                raise(e)
 
 
     # SQL Query
@@ -256,8 +308,11 @@ async def get_sleep(end_date: Optional[date] = Query(None)):
     """
 
     df = db.get_dataframe(sql_query)
+    if df.is_empty():
+        logging.info(f"no data returned for sleep_analysis...end_date={end_date}")
+        return []
     result = df.rename({'time':'date', 'totalSleep':'totalDuration', 'deep':'deepSleep', 'rem':'remSleep', 'core':'lightSleep'}) \
-    .select(['date', 'totalDuration', 'deepSleep', 'remSleep', 'lightSleep']).with_columns(
+    .select(['date', 'totalDuration', 'deepSleep', 'remSleep', 'lightSleep', 'awake']).with_columns(
         pl.col('date').dt.strftime('%h %e'),
         pl.lit(95).alias('efficiency')
     ).to_dicts()
@@ -271,7 +326,13 @@ async def get_workouts(date: Optional[date] = Query(None)):
     if not date:
         end = (today - timedelta(days=90)).isoformat()
     else:
-        end = datetime.strptime(date, '%Y-%m-%d').isoformat()
+        if type(date) == str:
+            end = (datetime.strptime(date, '%Y-%m-%d')- timedelta(days=30)).isoformat()
+        else:
+            try:
+                end = (date - timedelta(days=30)).isoformat()
+            except Exception as e:
+                raise(e)
 
 
     # SQL Query
@@ -283,6 +344,9 @@ async def get_workouts(date: Optional[date] = Query(None)):
     """
 
     df = db.get_dataframe(sql_query)
+    if df.is_empty():
+        logging.info(f"no data returned for workout...end_date = {date}")
+        return []
     df = df.select(['workout_id', 'time', 'workout_name', 'duration', 'active_energy_value']).with_columns(
         pl.col('workout_name').alias('type'),
         (pl.col('duration') / 60).cast(pl.Int64),
@@ -312,11 +376,18 @@ async def get_dietary_trends(end_date: Optional[date] = Query(None)):
     today = datetime.now(ZoneInfo("America/New_York"))
     start = today.isoformat()
     if not end_date:
-        end = (today - timedelta(days=90)).isoformat()
-        tend = (today - timedelta(days=97)).isoformat()
+        end = (today - timedelta(days=30)).isoformat()
+        tend = (today - timedelta(days=37)).isoformat()
     else:
-        end = datetime.strptime(end_date, '%Y-%m-%d').isoformat()
-        tend = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=7)).isoformat()
+        if type(end_date) == str:
+            end = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=30)).isoformat()
+            tend = (datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=37)).isoformat()
+        else:
+            try:
+                end = (end_date - timedelta(days=30)).isoformat()
+                tend = (end_date - timedelta(days=37)).isoformat()
+            except Exception as e:
+                raise(e)
 
     #---------------------
     # Calories
@@ -331,6 +402,9 @@ async def get_dietary_trends(end_date: Optional[date] = Query(None)):
     """
 
     df = db.get_dataframe(sql_query)
+    if df.is_empty():
+        logging.info(f"no data returned for dietary info...end_date={end_date}")
+        return []
     df = df.with_columns(
         pl.col('time').dt.convert_time_zone(time_zone="America/New_York")
     ).with_columns(
@@ -420,7 +494,7 @@ async def get_dietary_trends(end_date: Optional[date] = Query(None)):
     result = df.with_columns(
         pl.col('day').str.to_datetime('%Y-%m-%d').dt.strftime('%h %e'),
         pl.col('trend').fill_null(strategy='forward')
-    ).rename({'day':'time'}).to_dicts()
+    ).rename({'day':'date'}).to_dicts()
 
     return result
 
@@ -436,9 +510,15 @@ async def get_body_composition(end_date: Optional[date] = Query(None)):
     today = datetime.now(ZoneInfo("America/New_York"))
     start = today.isoformat()
     if not end_date:
-        end = (today - timedelta(days=90)).isoformat()
+        end = (today - timedelta(days=30)).isoformat()
     else:
-        end = datetime.strptime(end_date, '%Y-%m-%d').isoformat()
+        if type(end_date) == str:
+            end = (datetime.strptime(end_date, '%Y-%m-%d')- timedelta(days=30)).isoformat()
+        else:
+            try:
+                end = (end_date - timedelta(days=30)).isoformat()
+            except Exception as e:
+                raise(e)
 
     #---------------------
     # Weight
@@ -452,6 +532,9 @@ async def get_body_composition(end_date: Optional[date] = Query(None)):
     """
 
     df = db.get_dataframe(sql_query)
+    if df.is_empty():
+        logging.info(f"no data returned for body composition...end_date={end_date}")
+        return []
     df = df.rename({'qty':'weight'})
 
     #---------------------
