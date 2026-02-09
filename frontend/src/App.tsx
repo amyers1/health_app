@@ -36,11 +36,12 @@ import {
     HeartRateChart,
     StepBarChart,
     BloodPressureChart,
-    BodyTrendChart,
     SleepStagesChart,
     MacroTrendsChart,
     MonthlyCalorieChart,
     BloodGlucoseChart,
+    BodyWeightChart,
+    BodyFatPercentageChart,
 } from "./components/Charts";
 
 const App: React.FC = () => {
@@ -454,13 +455,14 @@ const App: React.FC = () => {
             case DashboardTab.BODY:
                 return (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
-                            <h3 className="font-semibold text-slate-100 mb-6 flex items-center gap-2">
-                                <Scale size={18} className="text-blue-400" />
-                                Weight & Body Composition History
-                            </h3>
-                            <BodyTrendChart data={bodyTrends} />
-                        </section>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
+                                <BodyWeightChart data={bodyTrends} />
+                            </section>
+                            <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
+                                <BodyFatPercentageChart data={bodyTrends} />
+                            </section>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <MetricCard
                                 title="Weight"
