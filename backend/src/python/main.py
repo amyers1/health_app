@@ -1,11 +1,11 @@
 import os
 import polars as pl
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, time, timezone
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from fastapi import FastAPI, Query, Body
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import logging
 import sys
 
@@ -113,6 +113,19 @@ class BodyCompositionResponse(BaseModel):
     weight: float
     bodyFat: float
 
+# --- helper functions ---
+
+def get_day(d: date) -> Tuple[str, str]:
+    tz = ZoneInfo("America/New_York")
+    if type(d) == str:
+        d = datetime.strptime(d, '%Y-%m-%d').date()
+    start_local = datetime.combine(d, time(0, 0), tzinfo=tz)
+    end_local = start_local + timedelta(days=1)
+
+    start_utc = start_local.astimezone(timezone.utc).isoformat()
+    end_utc = end_local.astimezone(timezone.utc).isoformat()
+    return start_utc, end_utc
+
 
 # --- API Endpoints ---
 
@@ -130,38 +143,43 @@ async def ingest_data(data: IngestData = Body(...)):
 
 @app.get("/api/v1/summary", response_model=SummaryResponse)
 async def get_summary(date: Optional[date] = Query(None)):
+    start, end = get_day(date)
+
     # SQL Query
-    sql_query = """
+    sql_query = f"""
     SELECT *
     FROM "daily_totals"
-    WHERE time > now() - interval '1d'
+    WHERE time >= '{start}' AND time < '{end}'
     ORDER BY time ASC
     """
-
-    today = datetime.now(ZoneInfo("America/New_York")).date()
     df = db.get_dataframe(sql_query)
-    if df.is_empty():
-        return {
-            "steps": 0,
-            "distance": 0,
-            "activeCalories": 0,
-            "basalCalories": 0,
-            "dietaryCalories": 0
-        }
 
-    df = df.with_columns(pl.col('time').dt.date().alias('date')).filter(pl.col('date').eq(today))
+    df = df.with_columns(pl.col('date').str.to_date('%Y-%m-%d'))#.filter(pl.col('date').eq(today))
 
     steps_query = df.filter((pl.col('metric')=='step_count') & (pl.col('source')=='RingConn')).select('value')
     distance_query = df.filter((pl.col('metric')=='walking_running_distance')).select('value')
     act_cal_query = df.filter((pl.col('metric')=='active_energy') & (pl.col('source')=='RingConn')).select('value')
     b_cal_query = df.filter((pl.col('metric')=='basal_energy_burned') & (pl.col('source')=='RingConn')).select('value')
-    calories_query = df.filter((pl.col('metric')=='dietary_energy')).select('value')
+
+
+    # SQL Query
+    sql_query = f"""
+    SELECT *
+    FROM "dietary_energy"
+    WHERE time >= '{start}' AND time < '{end}'
+    ORDER BY time ASC
+    """
+
+    df2 = db.get_dataframe(sql_query)
+    if not df2.is_empty():
+        calories_query = df2.select(['qty']).sum()
 
     steps = 0.0 if steps_query.is_empty() else steps_query[0,0]
     distance = 0.0 if distance_query.is_empty() else distance_query[0,0]
     act_cal = 0.0 if act_cal_query.is_empty() else act_cal_query[0,0]
     b_cal = 0.0 if b_cal_query.is_empty() else b_cal_query[0,0]
-    calories = 0.0 if calories_query.is_empty() else calories_query[0,0]
+    calories = 0.0 if df2.is_empty() else calories_query[0,0]
+
 
     # Make response
     response = {
@@ -177,6 +195,18 @@ async def get_summary(date: Optional[date] = Query(None)):
 
 @app.get("/api/v1/vitals/hr", response_model=List[HeartRateResponse])
 async def get_heart_rate(date: Optional[date] = Query(None)):
+    today = datetime.now(ZoneInfo("America/New_York"))
+    start = today.isoformat()
+    if not date:
+        end = (today - timedelta(days=30)).isoformat()
+    else:
+        if type(date) == str:
+            end = (datetime.strptime(date, '%Y-%m-%d')- timedelta(days=30)).isoformat()
+        else:
+            try:
+                end = (date - timedelta(days=30)).isoformat()
+            except Exception as e:
+                raise(e)
     # SQL Query
     sql_query = """
     SELECT *
@@ -265,7 +295,7 @@ async def get_glucose(end_date: Optional[date] = Query(None)):
             except Exception as e:
                 raise(e)
 
-    print (f'start = {start}; end = {end}')
+    # print (f'start = {start}; end = {end}')
 
     # SQL Query
     sql_query = f"""
