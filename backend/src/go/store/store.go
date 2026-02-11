@@ -10,6 +10,7 @@ import (
 	"health_app/api/model"
 
 	"github.com/InfluxCommunity/influxdb3-go/v2/influxdb3"
+	"github.com/joho/godotenv"
 )
 
 var easternZone, _ = time.LoadLocation("America/New_York")
@@ -26,12 +27,24 @@ func NewInfluxDBStore() (*InfluxDBStore, error) {
 	org := os.Getenv("INFLUX_ORG")
 	bucket := os.Getenv("INFLUX_DATABASE")
 
-	// For Debug
-	log.Printf("Connecting to InfluxDB at: %s (org: %s, bucket: %s)", url, org, bucket)
+
 
 	if url == "" || token == "" || org == "" || bucket == "" {
-		return nil, fmt.Errorf("INFLUX_HOST, INFLUX_TOKEN, INFLUX_ORG, and INFLUX_DATABASE must be set")
+		log.Printf("Could not load environment variables...attempting to load from .env file")
+
+		err := godotenv.Load("../../../.env")
+		if err != nil {
+			return nil, fmt.Errorf("INFLUX_HOST, INFLUX_TOKEN, INFLUX_ORG, and INFLUX_DATABASE must be set")
+		}
+		url = "http://10.0.0.9:8181"
+		token = os.Getenv("INFLUX_TOKEN")
+		org = os.Getenv("INFLUX_ORG")
+		bucket = os.Getenv("INFLUX_DATABASE")
+
 	}
+
+	// For Debug
+	log.Printf("Connecting to InfluxDB at: %s (org: %s, bucket: %s)", url, org, bucket)
 
 	client, err := influxdb3.New(influxdb3.ClientConfig{
 		Host:         url,
@@ -121,6 +134,12 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
         WHERE time >= '%s' AND time < '%s'
     `, start, stop)
 
+	query2 := fmt.Sprintf(`
+        SELECT qty
+        FROM "dietary_energy"
+        WHERE time >= '%s' AND time < '%s'
+    `, start, stop)
+
 	result, err := s.query(context.Background(), query)
 	if err != nil {
 		return nil, err
@@ -166,7 +185,34 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 		}
 	}
 
-	if result.Err() != nil {
+	result2, err := s.query(context.Background(), query2)
+	if err != nil {
+		return nil, err
+	}
+
+	summary.DietaryCalories = 0.0
+	for result2.Next() {
+		record := result2.Value()
+		value := record["qty"]
+
+		if value == nil {
+			continue
+		}
+
+		var floatValue float64
+		switch v := value.(type) {
+		case float64:
+			floatValue = v
+		case int64:
+			floatValue = float64(v)
+		default:
+			continue
+		}
+
+		summary.DietaryCalories += floatValue
+	}
+
+	if result.Err() != nil || result2.Err() != nil {
 		return nil, result.Err()
 	}
 

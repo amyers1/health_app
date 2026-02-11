@@ -48,6 +48,7 @@ func (h *Handler) HandleIngest(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleGetSummary(w http.ResponseWriter, r *http.Request) {
 	date := getDateQueryParam(r)
+	log.Printf("Received request to comput summary data for %s", date)
 	summary, err := h.store.GetSummary(date)
 	if err != nil {
 		log.Printf("ERROR: %v", err)
@@ -148,6 +149,7 @@ func (h *Handler) HandleGetBodyComposition(w http.ResponseWriter, r *http.Reques
 func getDateQueryParam(r *http.Request) string {
 	date := r.URL.Query().Get("date")
 	if date == "" {
+		log.Printf("Date not found...Received url: %s", r.URL)
 		date = time.Now().UTC().Format("2006-01-02")
 	}
 	return date
