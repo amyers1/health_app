@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
             host: "0.0.0.0",
             proxy: {
                 "/api": {
-                    target: "http://health-app-api:8080",
+                    target: "http://health-app-api:13001",
                     changeOrigin: true,
                 },
             },

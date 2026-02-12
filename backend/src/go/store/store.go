@@ -180,8 +180,6 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 			if source == "RingConn" {
 				summary.BasalCalories = floatValue
 			}
-		case "dietary_energy":
-			summary.DietaryCalories = floatValue
 		}
 	}
 
@@ -212,8 +210,11 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 		summary.DietaryCalories += floatValue
 	}
 
-	if result.Err() != nil || result2.Err() != nil {
+	if result.Err() != nil {
 		return nil, result.Err()
+	}
+	if result2.Err() != nil {
+		return nil, result2.Err()
 	}
 
 	return summary, nil
@@ -239,12 +240,41 @@ ORDER BY time`, start, stop)
 		t, okTime := record["time"].(time.Time)
 		if okVal && okTime {
 			values = append(values, model.TimeSeriesValue{
-				Time:  t.In(easternZone).Format("15:04"),
+				Time:  t.In(easternZone).Format("2006-01-02T15:04:05Z"),
 				Value: val,
 			})
 		}
 	}
-	return values, result.Err()
+	if result.Err() != nil {
+		return nil, result.Err()
+	}
+
+	// Aggregate into 10-minute buckets
+	buckets := make(map[time.Time][]float64)
+	for _, v := range values {
+		t, _ := time.Parse("2006-01-02T15:04:05Z", v.Time)
+		bucketTime := t.Truncate(10 * time.Minute)
+		buckets[bucketTime] = append(buckets[bucketTime], v.Value)
+	}
+
+	var aggregatedValues []model.TimeSeriesValue
+	for t, vals := range buckets {
+		var sum float64
+		for _, v := range vals {
+			sum += v
+		}
+		avg := sum / float64(len(vals))
+		aggregatedValues = append(aggregatedValues, model.TimeSeriesValue{
+			Time:  t.In(easternZone).Format("15:04"),
+			Value: avg,
+		})
+	}
+
+	sort.Slice(aggregatedValues, func(i, j int) bool {
+		return aggregatedValues[i].Time < aggregatedValues[j].Time
+	})
+
+	return aggregatedValues, nil
 }
 
 func (s *InfluxDBStore) GetVitalsBP(endDate string) ([]model.BloodPressure, error) {
@@ -309,9 +339,9 @@ ORDER BY time ASC`, start, stop)
 }
 
 func (s *InfluxDBStore) GetSleep(endDate string) ([]model.Sleep, error) {
-	start, stop := getDaysRange(endDate, 90)
+	start, stop := getDaysRange(endDate, 7)
 	sqlQuery := fmt.Sprintf(`
-SELECT time, "totalSleep", "deep", "rem", "core"
+SELECT time, "totalSleep", "deep", "rem", "core", "awake"
 FROM "sleep_analysis"
 WHERE time >= '%s' AND time <= '%s'
 ORDER BY time ASC`, start, stop)
@@ -424,8 +454,8 @@ type dailyNutrient struct {
 }
 
 func (s *InfluxDBStore) GetDietaryTrends(endDate string) ([]model.DietaryTrend, error) {
-	_, stop := getDaysRange(endDate, 90)
-	trendStart, _ := getDaysRange(endDate, 97)
+	_, stop := getDaysRange(endDate, 30)
+	trendStart, _ := getDaysRange(endDate, 37)
 
 	nutrients := []string{"dietary_energy", "protein", "carbohydrates", "total_fat"}
 
@@ -502,7 +532,7 @@ func (s *InfluxDBStore) GetDietaryTrends(endDate string) ([]model.DietaryTrend, 
 	var lastTrend float64 = 0
 
 	endDateT, _ := time.ParseInLocation("2006-01-02", endDate, easternZone)
-	startDateT := endDateT.AddDate(0, 0, -89)
+	startDateT := endDateT.AddDate(0, 0, -29)
 
 	for d := startDateT; !d.After(endDateT); d = d.AddDate(0, 0, 1) {
 		dayStr := d.Format("2006-01-02")

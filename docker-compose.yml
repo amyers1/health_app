@@ -1,7 +1,7 @@
 services:
     api:
         build:
-            context: ./backend/src/python
+            context: ./backend/src/go
             dockerfile: Dockerfile
         container_name: health-app-api
         # ports:

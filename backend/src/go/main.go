@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
 	"health_app/api/handler"
 	"health_app/api/store"
@@ -30,6 +31,17 @@ func main() {
 	h := handler.NewHandler(influxStore)
 
 	r := chi.NewRouter()
+
+	// CORS middleware
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"http://*", "https://*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300, // Maximum value not ignored by any major browsers
+	}))
+
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 

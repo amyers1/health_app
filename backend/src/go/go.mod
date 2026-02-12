@@ -12,6 +12,7 @@ require (
 
 require (
 	github.com/apache/arrow-go/v18 v18.5.0 // indirect
+	github.com/go-chi/cors v1.2.2 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/google/flatbuffers v25.9.23+incompatible // indirect
 	github.com/influxdata/line-protocol/v2 v2.2.1 // indirect
