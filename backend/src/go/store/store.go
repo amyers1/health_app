@@ -248,7 +248,7 @@ ORDER BY time`, start, stop)
 }
 
 func (s *InfluxDBStore) GetVitalsBP(endDate string) ([]model.BloodPressure, error) {
-	start, stop := getDaysRange(endDate, 90)
+	start, stop := getDaysRange(endDate, 30)
 	sqlQuery := fmt.Sprintf(`
 SELECT time, systolic, diastolic
 FROM "blood_pressure"
@@ -281,7 +281,7 @@ ORDER BY time ASC`, start, stop)
 }
 
 func (s *InfluxDBStore) GetVitalsGlucose(endDate string) ([]model.Glucose, error) {
-	start, stop := getDaysRange(endDate, 90)
+	start, stop := getDaysRange(endDate, 30)
 	sqlQuery := fmt.Sprintf(`
 SELECT time, qty as value
 FROM "blood_glucose"
@@ -329,15 +329,16 @@ ORDER BY time ASC`, start, stop)
 		deep, okDeep := record["deep"].(float64)
 		rem, okRem := record["rem"].(float64)
 		light, okLight := record["core"].(float64)
+		awake, okAwake := record["awake"].(float64)
 
-		if okTime && okTotal && okDeep && okRem && okLight {
+		if okTime && okTotal && okDeep && okRem && okLight && okAwake {
 			sleeps = append(sleeps, model.Sleep{
 				Date:          t.In(easternZone).Format("Jan 02"),
 				TotalDuration: total,
 				DeepSleep:     deep,
 				RemSleep:      rem,
 				LightSleep:    light,
-				Awake:         0, // Not available in query
+				Awake:         awake,
 				Efficiency:    95, // Hardcoded as per python
 			})
 		}
