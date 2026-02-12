@@ -457,6 +457,14 @@ const App: React.FC = () => {
                     bodyTrends.length > 0
                         ? bodyTrends[bodyTrends.length - 1]
                         : null;
+                const heightInInches = 68.5;
+                let bmi = 0;
+                if (latestBodyData && latestBodyData.weight) {
+                    bmi =
+                        (latestBodyData.weight /
+                            (heightInInches * heightInInches)) *
+                        703;
+                }
                 return (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -486,7 +494,7 @@ const App: React.FC = () => {
                             />
                             <MetricCard
                                 title="BMI"
-                                value="24.1"
+                                value={bmi > 0 ? bmi : "N/A"}
                                 unit=""
                                 icon={<User size={24} />}
                                 colorClass="text-emerald-400 bg-emerald-400"
