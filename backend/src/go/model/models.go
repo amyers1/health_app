@@ -56,23 +56,23 @@ type Sleep struct {
 
 // Workout is the structure for workout data
 type Workout struct {
-	ID        string `json:"id"`
-	Time      string `json:"time"`
-	Name      string `json:"name"`
-	Duration  int    `json:"duration"`
+	ID        string  `json:"id"`
+	Time      string  `json:"time"`
+	Name      string  `json:"name"`
+	Duration  int     `json:"duration"`
 	Calories  float64 `json:"calories"`
-	Type      string `json:"type"`
-	AvgHr     int    `json:"avgHr"`
+	Type      string  `json:"type"`
+	AvgHr     int     `json:"avgHr"`
 }
 
 // DietaryTrend is the structure for dietary trend data
 type DietaryTrend struct {
-	Date      string  `json:"date"`
-	Calories  float64 `json:"calories"`
-	Protein   float64 `json:"protein"`
-	Carbs     float64 `json:"carbs"`
-	Fat       float64 `json:"fat"`
-	Trend     float64 `json:"trend"`
+	Date     string  `json:"date"`
+	Calories float64 `json:"calories"`
+	Protein  float64 `json:"protein"`
+	Carbs    float64 `json:"carbs"`
+	Fat      float64 `json:"fat"`
+	Trend    float64 `json:"trend"`
 }
 
 // Meal is the structure for meal data
@@ -83,8 +83,10 @@ type Meal struct {
 }
 
 // BodyComposition is the structure for body composition data
+// CRITICAL: Field names must match frontend expectations (snake_case)
 type BodyComposition struct {
-	Time    string  `json:"time"`
-	Weight  float64 `json:"weight"`
-	BodyFat float64 `json:"bodyFat"`
+	Time       string  `json:"time"`
+	Weight     float64 `json:"weight"`
+	BodyFat    float64 `json:"body_fat"`    // Changed from bodyFat to body_fat
+	MuscleMass float64 `json:"muscle_mass"` // Added missing field
 }

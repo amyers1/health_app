@@ -27,8 +27,6 @@ func NewInfluxDBStore() (*InfluxDBStore, error) {
 	org := os.Getenv("INFLUX_ORG")
 	bucket := os.Getenv("INFLUX_DATABASE")
 
-
-
 	if url == "" || token == "" || org == "" || bucket == "" {
 		log.Printf("Could not load environment variables...attempting to load from .env file")
 
@@ -40,7 +38,6 @@ func NewInfluxDBStore() (*InfluxDBStore, error) {
 		token = os.Getenv("INFLUX_TOKEN")
 		org = os.Getenv("INFLUX_ORG")
 		bucket = os.Getenv("INFLUX_DATABASE")
-
 	}
 
 	// For Debug
@@ -125,7 +122,7 @@ func (s *InfluxDBStore) query(ctx context.Context, query string) (*influxdb3.Que
 }
 
 func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
-	start, stop := getDayRange(date)
+	start, stop := getDayRangeUTC(date)
 	summary := &model.Summary{}
 
 	query := fmt.Sprintf(`
@@ -221,11 +218,15 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 }
 
 func (s *InfluxDBStore) GetVitalsHR(date string) ([]model.TimeSeriesValue, error) {
-	start, stop := getDayRange(date)
+	// Match Python behavior: use rolling 24-hour window from now
+	now := time.Now().UTC()
+	stop := now.Format(time.RFC3339)
+	start := now.Add(-24 * time.Hour).Format(time.RFC3339)
+
 	sqlQuery := fmt.Sprintf(`
 SELECT time, "avg" as value
 FROM "heart_rate"
-WHERE time >= '%s' AND time < '%s'
+WHERE time > '%s' AND time <= '%s'
 ORDER BY time`, start, stop)
 
 	result, err := s.query(context.Background(), sqlQuery)
@@ -240,7 +241,7 @@ ORDER BY time`, start, stop)
 		t, okTime := record["time"].(time.Time)
 		if okVal && okTime {
 			values = append(values, model.TimeSeriesValue{
-				Time:  t.In(easternZone).Format("2006-01-02T15:04:05Z"),
+				Time:  t.UTC().Format("2006-01-02T15:04:05Z"),
 				Value: val,
 			})
 		}
@@ -278,44 +279,79 @@ ORDER BY time`, start, stop)
 }
 
 func (s *InfluxDBStore) GetVitalsBP(endDate string) ([]model.BloodPressure, error) {
-	start, stop := getDaysRange(endDate, 30)
+	start, stop := getDaysRangeUTC(endDate, 30)
+
+	log.Printf("Querying blood pressure: start=%s, stop=%s", start, stop)
+
 	sqlQuery := fmt.Sprintf(`
 SELECT time, systolic, diastolic
 FROM "blood_pressure"
-WHERE time >= '%s' AND time <= '%s'
+WHERE time > '%s' AND time <= '%s'
 ORDER BY time ASC`, start, stop)
 
 	result, err := s.query(context.Background(), sqlQuery)
 	if err != nil {
+		log.Printf("Blood pressure query error: %v", err)
 		return nil, err
 	}
 
 	var bps []model.BloodPressure
 	for result.Next() {
 		record := result.Value()
-		systolic, okSys := record["systolic"].(int64)
-		diastolic, okDia := record["diastolic"].(int64)
-		t, okTime := record["time"].(time.Time)
 
-		if okSys && okDia && okTime {
-			bp := model.BloodPressure{
-				Time:      t.In(easternZone).Format("Jan 02"),
-				Systolic:  int(systolic),
-				Diastolic: int(diastolic),
-				Category:  getBPCategory(int(systolic), int(diastolic)),
-			}
-			bps = append(bps, bp)
+		// Handle both int64 and float64 types from InfluxDB
+		var systolic, diastolic int
+
+		switch v := record["systolic"].(type) {
+		case int64:
+			systolic = int(v)
+		case float64:
+			systolic = int(v)
+		default:
+			log.Printf("Unexpected systolic type: %T", v)
+			continue
 		}
+
+		switch v := record["diastolic"].(type) {
+		case int64:
+			diastolic = int(v)
+		case float64:
+			diastolic = int(v)
+		default:
+			log.Printf("Unexpected diastolic type: %T", v)
+			continue
+		}
+
+		t, okTime := record["time"].(time.Time)
+		if !okTime {
+			log.Printf("Invalid time in blood pressure record")
+			continue
+		}
+
+		bp := model.BloodPressure{
+			Time:      t.In(easternZone).Format("Jan 02"),
+			Systolic:  systolic,
+			Diastolic: diastolic,
+			Category:  getBPCategory(systolic, diastolic),
+		}
+		bps = append(bps, bp)
 	}
-	return bps, result.Err()
+
+	if result.Err() != nil {
+		log.Printf("Blood pressure iteration error: %v", result.Err())
+		return nil, result.Err()
+	}
+
+	log.Printf("Found %d blood pressure records", len(bps))
+	return bps, nil
 }
 
 func (s *InfluxDBStore) GetVitalsGlucose(endDate string) ([]model.Glucose, error) {
-	start, stop := getDaysRange(endDate, 30)
+	start, stop := getDaysRangeUTC(endDate, 30)
 	sqlQuery := fmt.Sprintf(`
 SELECT time, qty as value
 FROM "blood_glucose"
-WHERE time >= '%s' AND time <= '%s'
+WHERE time > '%s' AND time <= '%s'
 ORDER BY time ASC`, start, stop)
 
 	result, err := s.query(context.Background(), sqlQuery)
@@ -339,11 +375,11 @@ ORDER BY time ASC`, start, stop)
 }
 
 func (s *InfluxDBStore) GetSleep(endDate string) ([]model.Sleep, error) {
-	start, stop := getDaysRange(endDate, 7)
+	start, stop := getDaysRangeUTC(endDate, 7)
 	sqlQuery := fmt.Sprintf(`
 SELECT time, "totalSleep", "deep", "rem", "core", "awake"
 FROM "sleep_analysis"
-WHERE time >= '%s' AND time <= '%s'
+WHERE time > '%s' AND time <= '%s'
 ORDER BY time ASC`, start, stop)
 
 	result, err := s.query(context.Background(), sqlQuery)
@@ -377,11 +413,11 @@ ORDER BY time ASC`, start, stop)
 }
 
 func (s *InfluxDBStore) GetWorkouts(date string) ([]model.Workout, error) {
-	start, stop := getDaysRange(date, 90)
+	start, stop := getDaysRangeUTC(date, 90)
 	sqlQuery := fmt.Sprintf(`
 SELECT workout_id, time, workout_name, duration, active_energy_value
 FROM "workout"
-WHERE time >= '%s' AND time <= '%s'
+WHERE time > '%s' AND time <= '%s'
 ORDER BY time ASC`, start, stop)
 
 	result, err := s.query(context.Background(), sqlQuery)
@@ -416,7 +452,7 @@ ORDER BY time ASC`, start, stop)
 	hrQuery := fmt.Sprintf(`
         SELECT workout_id, avg("avg") as avg_hr
         FROM "workout_heart_rate"
-        WHERE time >= '%s' AND time <= '%s'
+        WHERE time > '%s' AND time <= '%s'
         GROUP BY workout_id`, start, stop)
 
 	hrResult, err := s.query(context.Background(), hrQuery)
@@ -454,8 +490,8 @@ type dailyNutrient struct {
 }
 
 func (s *InfluxDBStore) GetDietaryTrends(endDate string) ([]model.DietaryTrend, error) {
-	_, stop := getDaysRange(endDate, 30)
-	trendStart, _ := getDaysRange(endDate, 37)
+	_, stop := getDaysRangeUTC(endDate, 30)
+	trendStart, _ := getDaysRangeUTC(endDate, 37)
 
 	nutrients := []string{"dietary_energy", "protein", "carbohydrates", "total_fat"}
 
@@ -465,7 +501,7 @@ func (s *InfluxDBStore) GetDietaryTrends(endDate string) ([]model.DietaryTrend, 
 	for _, nutrient := range nutrients {
 		queryRangeStart := trendStart
 
-		sqlQuery := fmt.Sprintf(`SELECT time, qty FROM "%s" WHERE time >= '%s' AND time <= '%s'`, nutrient, queryRangeStart, stop)
+		sqlQuery := fmt.Sprintf(`SELECT time, qty FROM "%s" WHERE time > '%s' AND time <= '%s'`, nutrient, queryRangeStart, stop)
 
 		result, err := s.query(context.Background(), sqlQuery)
 		if err != nil {
@@ -498,7 +534,7 @@ func (s *InfluxDBStore) GetDietaryTrends(endDate string) ([]model.DietaryTrend, 
 		}
 	}
 
-	// 2. Calculate rolling average for trend
+	// 2. Calculate rolling average for trend (matching Python's behavior)
 	var sortedDays []string
 	for dayStr := range dailyData {
 		sortedDays = append(sortedDays, dayStr)
@@ -527,7 +563,7 @@ func (s *InfluxDBStore) GetDietaryTrends(endDate string) ([]model.DietaryTrend, 
 		}
 	}
 
-	// 3. Build final response
+	// 3. Build final response with forward-fill for missing trend values (matching Python)
 	var trends []model.DietaryTrend
 	var lastTrend float64 = 0
 
@@ -542,6 +578,7 @@ func (s *InfluxDBStore) GetDietaryTrends(endDate string) ([]model.DietaryTrend, 
 			data = val
 		}
 
+		// Forward-fill trend values (matching Python's fill_null(strategy='forward'))
 		if trend, ok := trendValues[dayStr]; ok {
 			lastTrend = trend
 		}
@@ -568,73 +605,167 @@ func (s *InfluxDBStore) GetDietaryMealsToday(date string) ([]model.Meal, error) 
 }
 
 func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposition, error) {
-	start, stop := getDaysRange(endDate, 90)
+	start, stop := getDaysRangeUTC(endDate, 30)
 
-	compositionMap := make(map[string]*model.BodyComposition)
-	var orderedDates []string
+	log.Printf("Querying body composition: start=%s, stop=%s", start, stop)
+
+	// Use time-based join instead of string-based join
+	type timeBasedComposition struct {
+		time       time.Time
+		weight     float64
+		bodyFat    float64
+		muscleMass float64
+	}
+
+	compositionMap := make(map[string]*timeBasedComposition)
 
 	// Weight
-	weightQuery := fmt.Sprintf(`SELECT time, qty as weight FROM "weight_body_mass" WHERE time >= '%s' AND time <= '%s' ORDER BY time ASC`, start, stop)
+	weightQuery := fmt.Sprintf(`SELECT time, qty as weight FROM "weight_body_mass" WHERE time > '%s' AND time <= '%s' ORDER BY time ASC`, start, stop)
 	weightResult, err := s.query(context.Background(), weightQuery)
 	if err != nil {
+		log.Printf("Weight query error: %v", err)
 		return nil, err
 	}
 
+	weightCount := 0
 	for weightResult.Next() {
 		record := weightResult.Value()
-		t, _ := record["time"].(time.Time)
-		weight, _ := record["weight"].(float64)
+		t, okTime := record["time"].(time.Time)
+		weight, okWeight := record["weight"].(float64)
 
-		dateStr := t.In(easternZone).Format("Jan 02")
-		if _, ok := compositionMap[dateStr]; !ok {
-			compositionMap[dateStr] = &model.BodyComposition{Time: dateStr}
-			orderedDates = append(orderedDates, dateStr)
+		if !okTime || !okWeight {
+			continue
 		}
-		compositionMap[dateStr].Weight = weight // last one wins for the day
+
+		// Use date string as key for grouping by day
+		dateKey := t.In(easternZone).Format("2006-01-02")
+		if _, ok := compositionMap[dateKey]; !ok {
+			compositionMap[dateKey] = &timeBasedComposition{time: t}
+		}
+		compositionMap[dateKey].weight = weight // last one wins for the day
+		weightCount++
 	}
+	log.Printf("Found %d weight records", weightCount)
 
 	// Body Fat
-	bfQuery := fmt.Sprintf(`SELECT time, qty as bodyFat FROM "body_fat_percentage" WHERE time >= '%s' AND time <= '%s' ORDER BY time ASC`, start, stop)
+	bfQuery := fmt.Sprintf(`SELECT time, qty as bodyFat FROM "body_fat_percentage" WHERE time > '%s' AND time <= '%s' ORDER BY time ASC`, start, stop)
 	bfResult, err := s.query(context.Background(), bfQuery)
 	if err != nil {
+		log.Printf("Body fat query error: %v", err)
 		return nil, err
 	}
 
+	bfCount := 0
 	for bfResult.Next() {
 		record := bfResult.Value()
-		t, _ := record["time"].(time.Time)
-		bodyFat, _ := record["bodyFat"].(float64)
-		dateStr := t.In(easternZone).Format("Jan 02")
-		if comp, ok := compositionMap[dateStr]; ok {
-			comp.BodyFat = bodyFat
+		t, okTime := record["time"].(time.Time)
+		bodyFat, okBF := record["bodyFat"].(float64)
+
+		if !okTime || !okBF {
+			continue
+		}
+
+		dateKey := t.In(easternZone).Format("2006-01-02")
+		if comp, ok := compositionMap[dateKey]; ok {
+			comp.bodyFat = bodyFat
+		} else {
+			// Create entry if it doesn't exist
+			compositionMap[dateKey] = &timeBasedComposition{
+				time:    t,
+				bodyFat: bodyFat,
+			}
+		}
+		bfCount++
+	}
+	log.Printf("Found %d body fat records", bfCount)
+
+	// Lean Body Mass (if available) - this can be used to calculate muscle mass
+	lbmQuery := fmt.Sprintf(`SELECT time, qty as leanBodyMass FROM "lean_body_mass" WHERE time > '%s' AND time <= '%s' ORDER BY time ASC`, start, stop)
+	lbmResult, _ := s.query(context.Background(), lbmQuery)
+
+	if lbmResult != nil {
+		for lbmResult.Next() {
+			record := lbmResult.Value()
+			t, okTime := record["time"].(time.Time)
+			leanMass, okLBM := record["leanBodyMass"].(float64)
+
+			if okTime && okLBM {
+				dateKey := t.In(easternZone).Format("2006-01-02")
+				if comp, ok := compositionMap[dateKey]; ok {
+					comp.muscleMass = leanMass
+				}
+			}
 		}
 	}
+
+	// Sort by date and filter out incomplete records
+	var sortedDates []string
+	for dateKey := range compositionMap {
+		sortedDates = append(sortedDates, dateKey)
+	}
+	sort.Strings(sortedDates)
 
 	var compositions []model.BodyComposition
-	for _, dateStr := range orderedDates {
-		comp := compositionMap[dateStr]
-		if comp.Weight > 0 && comp.BodyFat > 0 {
-			compositions = append(compositions, *comp)
+	for _, dateKey := range sortedDates {
+		comp := compositionMap[dateKey]
+
+		// Calculate muscle mass from weight and body fat if not directly available
+		if comp.muscleMass == 0 && comp.weight > 0 && comp.bodyFat > 0 {
+			// Muscle mass ≈ lean body mass
+			// Lean body mass = weight * (1 - body_fat_percentage/100)
+			comp.muscleMass = comp.weight * (1 - comp.bodyFat/100)
+		}
+
+		// Only include if we have weight (body fat and muscle mass are optional)
+		if comp.weight > 0 {
+			compositions = append(compositions, model.BodyComposition{
+				Time:       comp.time.In(easternZone).Format("Jan 02"),
+				Weight:     comp.weight,
+				BodyFat:    comp.bodyFat,
+				MuscleMass: comp.muscleMass,
+			})
 		}
 	}
 
+	log.Printf("Returning %d body composition records", len(compositions))
 	return compositions, nil
 }
 
 // --- Helper Functions ---
 
-func getDayRange(dateStr string) (string, string) {
+// getDayRangeUTC returns UTC timestamps for the start and end of a day in Eastern time
+func getDayRangeUTC(dateStr string) (string, string) {
+	// Parse date in Eastern timezone
 	t, _ := time.ParseInLocation("2006-01-02", dateStr, easternZone)
-	start := t.Format(time.RFC3339)
-	stop := t.Add(24 * time.Hour).Format(time.RFC3339)
-	return start, stop
+
+	// Create start and end times in Eastern
+	startEastern := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, easternZone)
+	endEastern := startEastern.Add(24 * time.Hour)
+
+	// Convert to UTC for InfluxDB query
+	startUTC := startEastern.UTC().Format(time.RFC3339)
+	endUTC := endEastern.UTC().Format(time.RFC3339)
+
+	return startUTC, endUTC
 }
 
-func getDaysRange(endDateStr string, days int) (string, string) {
-	end, _ := time.ParseInLocation("2006-01-02", endDateStr, easternZone)
-	stop := end.Add(24*time.Hour - 1*time.Nanosecond).Format(time.RFC3339Nano)
-	start := end.AddDate(0, 0, -days+1).Format(time.RFC3339Nano)
-	return start, stop
+// getDaysRangeUTC returns UTC timestamps for a range of days ending on endDate
+func getDaysRangeUTC(endDateStr string, days int) (string, string) {
+	// Parse end date in Eastern timezone
+	endDate, _ := time.ParseInLocation("2006-01-02", endDateStr, easternZone)
+
+	// Create end of day in Eastern
+	endEastern := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 23, 59, 59, 999999999, easternZone)
+
+	// Calculate start date
+	startDate := endDate.AddDate(0, 0, -days+1)
+	startEastern := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, easternZone)
+
+	// Convert to UTC for InfluxDB query
+	startUTC := startEastern.UTC().Format(time.RFC3339)
+	stopUTC := endEastern.UTC().Format(time.RFC3339)
+
+	return startUTC, stopUTC
 }
 
 func getBPCategory(systolic, diastolic int) string {

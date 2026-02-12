@@ -196,7 +196,9 @@ const App: React.FC = () => {
                                 Heart Rate Intensity
                             </h3>
                         </div>
-                        <HeartRateChart data={hrData} />
+                        <div className="h-72">
+                            <HeartRateChart data={hrData} />
+                        </div>
                     </section>
                 </div>
 
@@ -437,7 +439,9 @@ const App: React.FC = () => {
                                     />
                                     Heart Rate Variation
                                 </h3>
-                                <HeartRateChart data={hrData} />
+                                <div className="h-72">
+                                    <HeartRateChart data={hrData} />
+                                </div>
                             </section>
                         </div>
                         <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
