@@ -22,6 +22,7 @@ import {
     SleepData,
     DietaryData,
 } from "../types";
+import { formatNumber } from "../utils";
 
 export const HeartRateChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
@@ -70,6 +71,7 @@ export const HeartRateChart: React.FC<{ data: TimeSeriesData[] }> = ({
                         borderRadius: "8px",
                     }}
                     itemStyle={{ color: "#f8fafc" }}
+                    formatter={(value: number) => `${formatNumber(value)} bpm`}
                 />
                 <Area
                     type="monotone"
@@ -115,6 +117,9 @@ export const StepBarChart: React.FC<{ data: TimeSeriesData[] }> = ({
                         border: "1px solid #334155",
                         borderRadius: "8px",
                     }}
+                    formatter={(value: number) =>
+                        `${formatNumber(value)} steps`
+                    }
                 />
                 <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                     {data.map((entry, index) => (
@@ -161,6 +166,7 @@ export const BloodPressureChart: React.FC<{ data: BloodPressureData[] }> = ({
                         border: "1px solid #334155",
                         borderRadius: "8px",
                     }}
+                    formatter={(value: number) => `${formatNumber(value)} mmHg`}
                 />
                 <Legend verticalAlign="top" height={36} />
                 <Line
@@ -239,6 +245,9 @@ export const BloodGlucoseChart: React.FC<{ data: TimeSeriesData[] }> = ({
                         borderRadius: "8px",
                     }}
                     itemStyle={{ color: "#f8fafc" }}
+                    formatter={(value: number) =>
+                        `${formatNumber(value)} mg/dL`
+                    }
                 />
                 <ReferenceLine
                     y={140}
@@ -324,6 +333,8 @@ export const BodyWeightChart: React.FC<{ data: TimeSeriesData[] }> = ({
                     tickLine={false}
                     axisLine={false}
                     unit=" lbs"
+                    domain={["dataMin - 5", "dataMax + 5"]}
+                    tickFormatter={(tick) => formatNumber(tick)}
                 />
                 <Tooltip
                     contentStyle={{
@@ -331,6 +342,7 @@ export const BodyWeightChart: React.FC<{ data: TimeSeriesData[] }> = ({
                         border: "1px solid #334155",
                         borderRadius: "8px",
                     }}
+                    formatter={(value: number) => `${formatNumber(value)} lbs`}
                 />
                 <Area
                     type="monotone"
@@ -373,6 +385,8 @@ export const BodyFatPercentageChart: React.FC<{ data: TimeSeriesData[] }> = ({
                     tickLine={false}
                     axisLine={false}
                     unit="%"
+                    domain={["dataMin - 2", "dataMax + 2"]}
+                    tickFormatter={(tick) => formatNumber(tick)}
                 />
                 <Tooltip
                     contentStyle={{
@@ -380,6 +394,7 @@ export const BodyFatPercentageChart: React.FC<{ data: TimeSeriesData[] }> = ({
                         border: "1px solid #334155",
                         borderRadius: "8px",
                     }}
+                    formatter={(value: number) => `${formatNumber(value)} %`}
                 />
                 <Line
                     type="monotone"
@@ -423,6 +438,7 @@ export const SleepStagesChart: React.FC<{ data: SleepData[] }> = ({ data }) => (
                         fill: "#64748b",
                         fontSize: 10,
                     }}
+                    tickFormatter={(tick) => formatNumber(tick)}
                 />
                 <Tooltip
                     contentStyle={{
@@ -430,6 +446,7 @@ export const SleepStagesChart: React.FC<{ data: SleepData[] }> = ({ data }) => (
                         border: "1px solid #334155",
                         borderRadius: "8px",
                     }}
+                    formatter={(value: number) => `${formatNumber(value)} hrs`}
                 />
                 <Legend verticalAlign="top" iconType="circle" />
                 <Bar
@@ -474,6 +491,7 @@ export const MacroTrendsChart: React.FC<{ data: DietaryData[] }> = ({
                     fontSize={10}
                     tickLine={false}
                     axisLine={false}
+                    tickFormatter={(tick) => formatNumber(tick)}
                 />
                 <Tooltip
                     contentStyle={{
@@ -481,6 +499,7 @@ export const MacroTrendsChart: React.FC<{ data: DietaryData[] }> = ({
                         border: "1px solid #334155",
                         borderRadius: "8px",
                     }}
+                    formatter={(value: number) => `${formatNumber(value)} g`}
                 />
                 <Legend verticalAlign="top" iconType="circle" />
                 <Area
@@ -544,6 +563,7 @@ export const MonthlyCalorieChart: React.FC<{
                         border: "1px solid #334155",
                         borderRadius: "8px",
                     }}
+                    formatter={(value: number) => `${formatNumber(value)} kcal`}
                 />
                 <Legend verticalAlign="top" />
                 <Bar

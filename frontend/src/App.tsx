@@ -453,6 +453,10 @@ const App: React.FC = () => {
                     </div>
                 );
             case DashboardTab.BODY:
+                const latestBodyData =
+                    bodyTrends.length > 0
+                        ? bodyTrends[bodyTrends.length - 1]
+                        : null;
                 return (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -466,7 +470,7 @@ const App: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <MetricCard
                                 title="Weight"
-                                value="182.4"
+                                value={latestBodyData?.weight || 0}
                                 unit="lbs"
                                 icon={<Scale size={24} />}
                                 colorClass="text-blue-400 bg-blue-400"
@@ -474,7 +478,7 @@ const App: React.FC = () => {
                             />
                             <MetricCard
                                 title="Body Fat"
-                                value="17.2"
+                                value={latestBodyData?.body_fat || 0}
                                 unit="%"
                                 icon={<TrendingUp size={24} />}
                                 colorClass="text-purple-400 bg-purple-400"
