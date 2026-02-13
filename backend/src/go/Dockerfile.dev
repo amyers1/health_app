@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+FROM golang:1.24-alpine AS development
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Install git and other tools if needed for dependencies
+RUN apk add --no-cache git
+
+# Copy go.mod and go.sum files to the working directory
+COPY go.mod go.sum ./
+
+# Download the dependencies. This layer is cached well as it only changes when go.mod/go.sum changes
+RUN go mod download
+
+# Copy the rest of the source code. During local dev this is primarily used for the initial setup.
+COPY . .
+
+# Expose the port your Go app listens on
+EXPOSE 13001
+
+# Command to run the application (will be overridden by 'docker run' command for dev purposes)
+CMD ["go", "run", "main.go"]

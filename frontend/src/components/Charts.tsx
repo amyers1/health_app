@@ -398,7 +398,7 @@ export const BodyFatPercentageChart: React.FC<{ data: TimeSeriesData[] }> = ({
                 />
                 <Line
                     type="monotone"
-                    dataKey="bodyFat"
+                    dataKey="body_fat"
                     name="Body Fat"
                     stroke="#8b5cf6"
                     strokeWidth={2}

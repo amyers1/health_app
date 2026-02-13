@@ -85,8 +85,9 @@ type Meal struct {
 // BodyComposition is the structure for body composition data
 // CRITICAL: Field names must match frontend expectations (snake_case)
 type BodyComposition struct {
+	T          time.Time `json:"index"`
 	Time       string  `json:"time"`
 	Weight     float64 `json:"weight"`
-	BodyFat    float64 `json:"body_fat"`    // Changed from bodyFat to body_fat
+	BodyFat    float64 `json:"body_fat"`
 	MuscleMass float64 `json:"muscle_mass"` // Added missing field
 }

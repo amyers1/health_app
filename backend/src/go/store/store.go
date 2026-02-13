@@ -607,127 +607,75 @@ func (s *InfluxDBStore) GetDietaryMealsToday(date string) ([]model.Meal, error) 
 func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposition, error) {
 	start, stop := getDaysRangeUTC(endDate, 30)
 
-	log.Printf("Querying body composition: start=%s, stop=%s", start, stop)
-
-	// Use time-based join instead of string-based join
-	type timeBasedComposition struct {
-		time       time.Time
-		weight     float64
-		bodyFat    float64
-		muscleMass float64
-	}
-
-	compositionMap := make(map[string]*timeBasedComposition)
-
-	// Weight
-	weightQuery := fmt.Sprintf(`SELECT time, qty as weight FROM "weight_body_mass" WHERE time > '%s' AND time <= '%s' ORDER BY time ASC`, start, stop)
+	// 1. Fetch weight data into a map keyed by timestamp
+	weightMap := make(map[time.Time]float64)
+	weightQuery := fmt.Sprintf(`SELECT time, qty as weight FROM "weight_body_mass" WHERE time > '%s' AND time <= '%s'`, start, stop)
 	weightResult, err := s.query(context.Background(), weightQuery)
 	if err != nil {
-		log.Printf("Weight query error: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("weight query error: %w", err)
 	}
 
-	weightCount := 0
 	for weightResult.Next() {
 		record := weightResult.Value()
 		t, okTime := record["time"].(time.Time)
 		weight, okWeight := record["weight"].(float64)
-
-		if !okTime || !okWeight {
-			continue
+		if okTime && okWeight {
+			weightMap[t] = weight
 		}
-
-		// Use date string as key for grouping by day
-		dateKey := t.In(easternZone).Format("2006-01-02")
-		if _, ok := compositionMap[dateKey]; !ok {
-			compositionMap[dateKey] = &timeBasedComposition{time: t}
-		}
-		compositionMap[dateKey].weight = weight // last one wins for the day
-		weightCount++
 	}
-	log.Printf("Found %d weight records", weightCount)
+	if weightResult.Err() != nil {
+		return nil, weightResult.Err()
+	}
 
-	// Body Fat
-	bfQuery := fmt.Sprintf(`SELECT time, qty as bodyFat FROM "body_fat_percentage" WHERE time > '%s' AND time <= '%s' ORDER BY time ASC`, start, stop)
+	log.Printf("Found %d weight records", len(weightMap))
+
+	// 2. Fetch body fat data and perform an inner join with weight data
+	var compositions []model.BodyComposition
+	bfQuery := fmt.Sprintf(`SELECT time, qty as bodyFat FROM "body_fat_percentage" WHERE time > '%s' AND time <= '%s'`, start, stop)
 	bfResult, err := s.query(context.Background(), bfQuery)
 	if err != nil {
-		log.Printf("Body fat query error: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("body fat query error: %w", err)
 	}
 
-	bfCount := 0
 	for bfResult.Next() {
 		record := bfResult.Value()
 		t, okTime := record["time"].(time.Time)
-		bodyFat, okBF := record["bodyFat"].(float64)
+		bodyFat, okBF := record["bodyfat"].(float64)
 
-		if !okTime || !okBF {
-			continue
-		}
-
-		dateKey := t.In(easternZone).Format("2006-01-02")
-		if comp, ok := compositionMap[dateKey]; ok {
-			comp.bodyFat = bodyFat
-		} else {
-			// Create entry if it doesn't exist
-			compositionMap[dateKey] = &timeBasedComposition{
-				time:    t,
-				bodyFat: bodyFat,
-			}
-		}
-		bfCount++
-	}
-	log.Printf("Found %d body fat records", bfCount)
-
-	// Lean Body Mass (if available) - this can be used to calculate muscle mass
-	lbmQuery := fmt.Sprintf(`SELECT time, qty as leanBodyMass FROM "lean_body_mass" WHERE time > '%s' AND time <= '%s' ORDER BY time ASC`, start, stop)
-	lbmResult, _ := s.query(context.Background(), lbmQuery)
-
-	if lbmResult != nil {
-		for lbmResult.Next() {
-			record := lbmResult.Value()
-			t, okTime := record["time"].(time.Time)
-			leanMass, okLBM := record["leanBodyMass"].(float64)
-
-			if okTime && okLBM {
-				dateKey := t.In(easternZone).Format("2006-01-02")
-				if comp, ok := compositionMap[dateKey]; ok {
-					comp.muscleMass = leanMass
-				}
+		// Check for matching weight measurement at the same timestamp (inner join)
+		if okTime && okBF {
+			if weight, ok := weightMap[t]; ok {
+				compositions = append(compositions, model.BodyComposition{
+					T: t,
+					Time:    t.In(easternZone).Format("Jan 02"),
+					Weight:  weight,
+					BodyFat: bodyFat,
+				})
 			}
 		}
 	}
 
-	// Sort by date and filter out incomplete records
-	var sortedDates []string
-	for dateKey := range compositionMap {
-		sortedDates = append(sortedDates, dateKey)
-	}
-	sort.Strings(sortedDates)
+	log.Printf("Found %d composition records", len(compositions))
 
-	var compositions []model.BodyComposition
-	for _, dateKey := range sortedDates {
-		comp := compositionMap[dateKey]
 
-		// Calculate muscle mass from weight and body fat if not directly available
-		if comp.muscleMass == 0 && comp.weight > 0 && comp.bodyFat > 0 {
-			// Muscle mass ≈ lean body mass
-			// Lean body mass = weight * (1 - body_fat_percentage/100)
-			comp.muscleMass = comp.weight * (1 - comp.bodyFat/100)
-		}
-
-		// Only include if we have weight (body fat and muscle mass are optional)
-		if comp.weight > 0 {
-			compositions = append(compositions, model.BodyComposition{
-				Time:       comp.time.In(easternZone).Format("Jan 02"),
-				Weight:     comp.weight,
-				BodyFat:    comp.bodyFat,
-				MuscleMass: comp.muscleMass,
-			})
-		}
+	if bfResult.Err() != nil {
+		return nil, bfResult.Err()
 	}
 
-	log.Printf("Returning %d body composition records", len(compositions))
+	// Sort results by time ascending
+	sort.Slice(compositions, func(i, j int) bool {
+		// Note: This sorts by string representation, which is fine for "Jan 02" format within the same year
+		return compositions[i].T.Before(compositions[j].T)
+	})
+
+	for _, value := range compositions {
+		t := value.T.Format(time.RFC3339)
+		w := value.Weight
+		b := value.BodyFat
+		log.Printf("comp records: time = %s, weight= %d, bf= %d\n", t, w, b)
+    }
+
+
 	return compositions, nil
 }
 
