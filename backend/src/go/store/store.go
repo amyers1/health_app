@@ -143,7 +143,6 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer result.Close() // CRITICAL: Close iterator
 
 	for result.Next() {
 		record := result.Value()
@@ -191,7 +190,6 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer result2.Close() // CRITICAL: Close iterator
 
 	summary.DietaryCalories = 0.0
 	for result2.Next() {
@@ -238,7 +236,6 @@ ORDER BY time`, start, stop)
 	if err != nil {
 		return nil, err
 	}
-	defer result.Close() // CRITICAL: Close iterator
 
 	var values []model.TimeSeriesValue
 	for result.Next() {
@@ -300,7 +297,6 @@ ORDER BY time ASC`, start, stop)
 		log.Printf("Blood pressure query error: %v", err)
 		return nil, err
 	}
-	defer result.Close() // CRITICAL: Close iterator
 
 	var bps []model.BloodPressure
 	for result.Next() {
@@ -365,7 +361,6 @@ ORDER BY time ASC`, start, stop)
 	if err != nil {
 		return nil, err
 	}
-	defer result.Close() // CRITICAL: Close iterator
 
 	var glucoses []model.Glucose
 	for result.Next() {
@@ -399,7 +394,6 @@ ORDER BY time ASC`, start, stop)
 	if err != nil {
 		return nil, err
 	}
-	defer result.Close() // CRITICAL: Close iterator
 
 	var sleeps []model.Sleep
 	for result.Next() {
@@ -443,7 +437,6 @@ ORDER BY time ASC`, start, stop)
 	if err != nil {
 		return nil, err
 	}
-	defer result.Close() // CRITICAL: Close iterator
 
 	workoutsMap := make(map[string]model.Workout)
 	var workoutIDs []string
@@ -479,7 +472,6 @@ ORDER BY time ASC`, start, stop)
 	if err != nil {
 		return nil, err
 	}
-	defer hrResult.Close() // CRITICAL: Close iterator
 
 	for hrResult.Next() {
 		record := hrResult.Value()
@@ -528,7 +520,6 @@ func (s *InfluxDBStore) GetDietaryTrends(endDate string) ([]model.DietaryTrend, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to query nutrient %s: %w", nutrient, err)
 		}
-		defer result.Close() // CRITICAL: Close iterator
 
 		for result.Next() {
 			record := result.Value()
@@ -636,7 +627,6 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 	if err != nil {
 		return nil, fmt.Errorf("weight query error: %w", err)
 	}
-	defer weightResult.Close() // CRITICAL: Close iterator
 
 	for weightResult.Next() {
 		record := weightResult.Value()
@@ -659,7 +649,6 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 	if err != nil {
 		return nil, fmt.Errorf("body fat query error: %w", err)
 	}
-	defer bfResult.Close() // CRITICAL: Close iterator
 
 	for bfResult.Next() {
 		record := bfResult.Value()

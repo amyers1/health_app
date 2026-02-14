@@ -23,9 +23,20 @@ services:
             - "13000:80"
         networks:
             - backend
+            - proxy
         depends_on:
             - api
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.frontend-router.rule=Host(`health.myerslab.me`)"
+            - "traefik.http.routers.frontend-router.entrypoints=websecure"
+            - "traefik.http.routers.frontend-router.tls=true"
+            - "traefik.http.routers.frontend-router.tls.certresolver=cloudflare"
+            - "traefik.http.services.frontend-service.loadbalancer.server.port=80"
+            - "traefik.docker.network=proxy"
 
 networks:
     backend:
+        external: true
+    proxy:
         external: true
