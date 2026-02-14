@@ -27,7 +27,7 @@ import { formatNumber } from "../utils";
 export const HeartRateChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full">
+    <div className="h-64 w-full min-h-[256px]">
         <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data}>
                 <defs>
@@ -89,7 +89,7 @@ export const HeartRateChart: React.FC<{ data: TimeSeriesData[] }> = ({
 export const StepBarChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full">
+    <div className="h-64 w-full min-h-[256px]">
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data}>
                 <CartesianGrid
@@ -137,7 +137,7 @@ export const StepBarChart: React.FC<{ data: TimeSeriesData[] }> = ({
 export const BloodPressureChart: React.FC<{ data: BloodPressureData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full">
+    <div className="h-64 w-full min-h-[256px]">
         <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
                 <CartesianGrid
@@ -195,7 +195,7 @@ export const BloodPressureChart: React.FC<{ data: BloodPressureData[] }> = ({
 export const BloodGlucoseChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full">
+    <div className="h-64 w-full min-h-[256px]">
         <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data}>
                 <defs>
@@ -289,7 +289,7 @@ export const BloodGlucoseChart: React.FC<{ data: TimeSeriesData[] }> = ({
 export const BodyWeightChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full">
+    <div className="h-64 w-full min-h-[256px]">
         <h3 className="text-lg font-semibold text-slate-200 mb-2">
             Body Weight
         </h3>
@@ -361,7 +361,7 @@ export const BodyWeightChart: React.FC<{ data: TimeSeriesData[] }> = ({
 export const BodyFatPercentageChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full">
+    <div className="h-64 w-full min-h-[256px]">
         <h3 className="text-lg font-semibold text-slate-200 mb-2">
             Body Fat %
         </h3>
@@ -410,7 +410,7 @@ export const BodyFatPercentageChart: React.FC<{ data: TimeSeriesData[] }> = ({
 );
 
 export const SleepStagesChart: React.FC<{ data: SleepData[] }> = ({ data }) => (
-    <div className="h-64 w-full">
+    <div className="h-64 w-full min-h-[256px]">
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data}>
                 <CartesianGrid
@@ -471,7 +471,7 @@ export const SleepStagesChart: React.FC<{ data: SleepData[] }> = ({ data }) => (
 export const MacroTrendsChart: React.FC<{ data: DietaryData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full">
+    <div className="h-64 w-full min-h-[256px]">
         <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data}>
                 <CartesianGrid
@@ -534,7 +534,7 @@ export const MacroTrendsChart: React.FC<{ data: DietaryData[] }> = ({
 export const MonthlyCalorieChart: React.FC<{
     data: (DietaryData & { trend?: number })[];
 }> = ({ data }) => (
-    <div className="h-72 w-full">
+    <div className="h-72 w-full min-h-[288px]">
         <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={data}>
                 <CartesianGrid
