@@ -640,7 +640,7 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 		return nil, weightResult.Err()
 	}
 
-	log.Printf("Found %d weight records", len(weightMap))
+	// log.Printf("Found %d weight records", len(weightMap))
 
 	// 2. Fetch body fat data and perform an inner join with weight data
 	var compositions []model.BodyComposition
@@ -673,19 +673,19 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 		return nil, bfResult.Err()
 	}
 
-	log.Printf("Found %d composition records", len(compositions))
+	// log.Printf("Found %d composition records", len(compositions))
 
 	// Sort results by time ascending
 	sort.Slice(compositions, func(i, j int) bool {
 		return compositions[i].T.Before(compositions[j].T)
 	})
 
-	for _, value := range compositions {
-		t := value.T.Format(time.RFC3339)
-		w := value.Weight
-		b := value.BodyFat
-		log.Printf("comp records: time = %s, weight= %f, bf= %f\n", t, w, b)
-	}
+	// for _, value := range compositions {
+	// 	t := value.T.Format(time.RFC3339)
+	// 	w := value.Weight
+	// 	b := value.BodyFat
+	// 	log.Printf("comp records: time = %s, weight= %f, bf= %f\n", t, w, b)
+	// }
 
 	return compositions, nil
 }
