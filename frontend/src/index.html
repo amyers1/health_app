@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -24,6 +23,18 @@
         .custom-scrollbar::-webkit-scrollbar-thumb {
             background: #334155;
             border-radius: 10px;
+        }
+
+        /* Recharts ResponsiveContainer fix - ensures minimum dimensions during render */
+        .recharts-responsive-container {
+            min-width: 100px !important;
+            min-height: 200px !important;
+        }
+
+        /* More specific fix for different chart heights */
+        [class*="h-64"] .recharts-responsive-container,
+        [class*="h-72"] .recharts-responsive-container {
+            min-height: inherit !important;
         }
     </style>
 <script type="importmap">

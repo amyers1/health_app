@@ -196,7 +196,7 @@ const App: React.FC = () => {
                                 Heart Rate Intensity
                             </h3>
                         </div>
-                        <div className="h-72 min-h-[288px]">
+                        <div className="h-72">
                             <HeartRateChart data={hrData} />
                         </div>
                     </section>
@@ -262,7 +262,7 @@ const App: React.FC = () => {
                 />
             </div>
 
-            <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 min-h-[320px]">
+            <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
                 <h3 className="font-semibold text-slate-100 mb-6 flex items-center gap-2">
                     <Calendar size={18} className="text-indigo-400" />
                     Weekly Sleep Analysis
@@ -388,7 +388,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 min-h-[360px]">
+                <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
                     <h3 className="font-semibold text-slate-100 mb-6 flex items-center gap-2">
                         <Calendar size={18} className="text-yellow-400" />
                         30-Day Calorie History
@@ -396,7 +396,7 @@ const App: React.FC = () => {
                     <MonthlyCalorieChart data={dietaryTrends} />
                 </section>
 
-                <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 min-h-[320px]">
+                <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
                     <h3 className="font-semibold text-slate-100 mb-6 flex items-center gap-2">
                         <TrendingUp size={18} className="text-emerald-400" />
                         Weekly Macro Balance
@@ -421,7 +421,7 @@ const App: React.FC = () => {
                 return (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 min-h-[320px]">
+                            <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
                                 <h3 className="font-semibold text-slate-100 mb-6 flex items-center gap-2">
                                     <Droplets
                                         size={18}
@@ -439,12 +439,12 @@ const App: React.FC = () => {
                                     />
                                     Heart Rate Variation
                                 </h3>
-                                <div className="h-72 min-h-[288px]">
+                                <div className="h-72">
                                     <HeartRateChart data={hrData} />
                                 </div>
                             </section>
                         </div>
-                        <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 min-h-[320px]">
+                        <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
                             <h3 className="font-semibold text-slate-100 mb-6 flex items-center gap-2">
                                 <Syringe
                                     size={18}
@@ -472,10 +472,10 @@ const App: React.FC = () => {
                 return (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 min-h-[320px]">
+                            <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
                                 <BodyWeightChart data={bodyTrends} />
                             </section>
-                            <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 min-h-[320px]">
+                            <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
                                 <BodyFatPercentageChart data={bodyTrends} />
                             </section>
                         </div>

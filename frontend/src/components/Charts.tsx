@@ -27,7 +27,7 @@ import { formatNumber } from "../utils";
 export const HeartRateChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full min-h-[256px]">
+    <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data}>
                 <defs>
@@ -89,7 +89,7 @@ export const HeartRateChart: React.FC<{ data: TimeSeriesData[] }> = ({
 export const StepBarChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full min-h-[256px]">
+    <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data}>
                 <CartesianGrid
@@ -137,7 +137,7 @@ export const StepBarChart: React.FC<{ data: TimeSeriesData[] }> = ({
 export const BloodPressureChart: React.FC<{ data: BloodPressureData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full min-h-[256px]">
+    <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
                 <CartesianGrid
@@ -195,7 +195,7 @@ export const BloodPressureChart: React.FC<{ data: BloodPressureData[] }> = ({
 export const BloodGlucoseChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full min-h-[256px]">
+    <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data}>
                 <defs>
@@ -289,128 +289,136 @@ export const BloodGlucoseChart: React.FC<{ data: TimeSeriesData[] }> = ({
 export const BodyWeightChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full min-h-[256px]">
+    <div className="h-64 w-full flex flex-col">
         <h3 className="text-lg font-semibold text-slate-200 mb-2">
             Body Weight
         </h3>
-        <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data}>
-                <defs>
-                    <linearGradient
-                        id="colorWeight"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                    >
-                        <stop
-                            offset="5%"
-                            stopColor="#06b6d4"
-                            stopOpacity={0.3}
-                        />
-                        <stop
-                            offset="95%"
-                            stopColor="#06b6d4"
-                            stopOpacity={0}
-                        />
-                    </linearGradient>
-                </defs>
-                <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="#1e293b"
-                />
-                <XAxis
-                    dataKey="time"
-                    stroke="#64748b"
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                />
-                <YAxis
-                    stroke="#64748b"
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                    unit=" lbs"
-                    domain={["dataMin - 5", "dataMax + 5"]}
-                    tickFormatter={(tick) => formatNumber(tick)}
-                />
-                <Tooltip
-                    contentStyle={{
-                        backgroundColor: "#0f172a",
-                        border: "1px solid #334155",
-                        borderRadius: "8px",
-                    }}
-                    formatter={(value: number) => `${formatNumber(value)} lbs`}
-                />
-                <Area
-                    type="monotone"
-                    dataKey="weight"
-                    name="Weight"
-                    stroke="#06b6d4"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorWeight)"
-                />
-            </AreaChart>
-        </ResponsiveContainer>
+        <div className="flex-grow">
+            <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={data}>
+                    <defs>
+                        <linearGradient
+                            id="colorWeight"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                        >
+                            <stop
+                                offset="5%"
+                                stopColor="#06b6d4"
+                                stopOpacity={0.3}
+                            />
+                            <stop
+                                offset="95%"
+                                stopColor="#06b6d4"
+                                stopOpacity={0}
+                            />
+                        </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        stroke="#1e293b"
+                    />
+                    <XAxis
+                        dataKey="time"
+                        stroke="#64748b"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
+                    />
+                    <YAxis
+                        stroke="#64748b"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
+                        unit=" lbs"
+                        domain={["dataMin - 5", "dataMax + 5"]}
+                        tickFormatter={(tick) => formatNumber(tick)}
+                    />
+                    <Tooltip
+                        contentStyle={{
+                            backgroundColor: "#0f172a",
+                            border: "1px solid #334155",
+                            borderRadius: "8px",
+                        }}
+                        formatter={(value: number) =>
+                            `${formatNumber(value)} lbs`
+                        }
+                    />
+                    <Area
+                        type="monotone"
+                        dataKey="weight"
+                        name="Weight"
+                        stroke="#06b6d4"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorWeight)"
+                    />
+                </AreaChart>
+            </ResponsiveContainer>
+        </div>
     </div>
 );
 
 export const BodyFatPercentageChart: React.FC<{ data: TimeSeriesData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full min-h-[256px]">
+    <div className="h-64 w-full flex flex-col">
         <h3 className="text-lg font-semibold text-slate-200 mb-2">
             Body Fat %
         </h3>
-        <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
-                <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="#1e293b"
-                />
-                <XAxis
-                    dataKey="time"
-                    stroke="#64748b"
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                />
-                <YAxis
-                    stroke="#64748b"
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                    unit="%"
-                    domain={["dataMin - 2", "dataMax + 2"]}
-                    tickFormatter={(tick) => formatNumber(tick)}
-                />
-                <Tooltip
-                    contentStyle={{
-                        backgroundColor: "#0f172a",
-                        border: "1px solid #334155",
-                        borderRadius: "8px",
-                    }}
-                    formatter={(value: number) => `${formatNumber(value)} %`}
-                />
-                <Line
-                    type="monotone"
-                    dataKey="body_fat"
-                    name="Body Fat"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    dot={{ r: 2 }}
-                />
-            </LineChart>
-        </ResponsiveContainer>
+        <div className="flex-grow">
+            <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data}>
+                    <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        stroke="#1e293b"
+                    />
+                    <XAxis
+                        dataKey="time"
+                        stroke="#64748b"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
+                    />
+                    <YAxis
+                        stroke="#64748b"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
+                        unit="%"
+                        domain={["dataMin - 2", "dataMax + 2"]}
+                        tickFormatter={(tick) => formatNumber(tick)}
+                    />
+                    <Tooltip
+                        contentStyle={{
+                            backgroundColor: "#0f172a",
+                            border: "1px solid #334155",
+                            borderRadius: "8px",
+                        }}
+                        formatter={(value: number) =>
+                            `${formatNumber(value)} %`
+                        }
+                    />
+                    <Line
+                        type="monotone"
+                        dataKey="body_fat"
+                        name="Body Fat"
+                        stroke="#8b5cf6"
+                        strokeWidth={2}
+                        dot={{ r: 2 }}
+                    />
+                </LineChart>
+            </ResponsiveContainer>
+        </div>
     </div>
 );
 
 export const SleepStagesChart: React.FC<{ data: SleepData[] }> = ({ data }) => (
-    <div className="h-64 w-full min-h-[256px]">
+    <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data}>
                 <CartesianGrid
@@ -471,7 +479,7 @@ export const SleepStagesChart: React.FC<{ data: SleepData[] }> = ({ data }) => (
 export const MacroTrendsChart: React.FC<{ data: DietaryData[] }> = ({
     data,
 }) => (
-    <div className="h-64 w-full min-h-[256px]">
+    <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data}>
                 <CartesianGrid
@@ -534,7 +542,7 @@ export const MacroTrendsChart: React.FC<{ data: DietaryData[] }> = ({
 export const MonthlyCalorieChart: React.FC<{
     data: (DietaryData & { trend?: number })[];
 }> = ({ data }) => (
-    <div className="h-72 w-full min-h-[288px]">
+    <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={data}>
                 <CartesianGrid
