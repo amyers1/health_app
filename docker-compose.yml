@@ -49,7 +49,7 @@ services:
         container_name: health-app-frontend
         restart: unless-stopped
         ports:
-            - "13000:80"
+            - "13000:8080"
         networks:
             - backend
             - proxy
@@ -64,7 +64,7 @@ services:
                     "--no-verbose",
                     "--tries=1",
                     "--spider",
-                    "http://localhost:80/",
+                    "http://localhost:8080/",
                 ]
             interval: 30s
             timeout: 10s
@@ -84,7 +84,7 @@ services:
             - "traefik.http.routers.frontend-router.entrypoints=websecure"
             - "traefik.http.routers.frontend-router.tls=true"
             - "traefik.http.routers.frontend-router.tls.certresolver=cloudflare"
-            - "traefik.http.services.frontend-service.loadbalancer.server.port=80"
+            - "traefik.http.services.frontend-service.loadbalancer.server.port=8080"
             - "traefik.docker.network=proxy"
             # Security headers (additional to nginx)
             - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
