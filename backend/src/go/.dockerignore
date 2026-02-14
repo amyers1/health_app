@@ -1,0 +1,43 @@
+# Go API .dockerignore
+# Place this in backend/src/go/.dockerignore
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README.md
+LICENSE
+
+# Development files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Test files
+*_test.go
+testdata/
+
+# Build artifacts (already built in multi-stage)
+main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Vendor (we use go mod download)
+vendor/
+
+# OS files
+.DS_Store
+Thumbs.db
