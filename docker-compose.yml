@@ -87,10 +87,10 @@ services:
             - "traefik.http.services.frontend-service.loadbalancer.server.port=8080"
             - "traefik.docker.network=proxy"
             # Security headers (additional to nginx)
-            - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
-            - "traefik.http.middlewares.security-headers.headers.browserXssFilter=true"
-            - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
-            - "traefik.http.routers.frontend-router.middlewares=security-headers"
+            # - "traefik.http.middlewares.security-headers.headers.frameDeny=true"
+            # - "traefik.http.middlewares.security-headers.headers.browserXssFilter=true"
+            # - "traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true"
+            # - "traefik.http.routers.frontend-router.middlewares=security-headers"
         logging:
             driver: "json-file"
             options:
