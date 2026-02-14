@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -23,10 +27,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create InfluxDB store: %v", err)
 	}
-	defer func() {
-		log.Println("Closing InfluxDB connection...")
-		influxStore.Close()
-	}()
 
 	h := handler.NewHandler(influxStore)
 
@@ -39,7 +39,7 @@ func main() {
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
-		MaxAge:           300, // Maximum value not ignored by any major browsers
+		MaxAge:           300,
 	}))
 
 	r.Use(middleware.Logger)
@@ -63,6 +63,39 @@ func main() {
 		port = "13001"
 	}
 
-	fmt.Printf("Server starting on port %s...\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: r,
+	}
+
+	// Channel to listen for interrupt or terminate signals
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
+	// Start server in a goroutine
+	go func() {
+		fmt.Printf("Server starting on port %s...\n", port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	// Block until we receive a signal
+	<-quit
+	log.Println("Shutting down server...")
+
+	// Create shutdown context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Attempt graceful shutdown
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	// Clean up InfluxDB connection
+	log.Println("Closing InfluxDB connection...")
+	influxStore.Close()
+
+	log.Println("Server exited")
 }

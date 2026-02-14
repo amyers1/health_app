@@ -63,7 +63,9 @@ func NewInfluxDBStore() (*InfluxDBStore, error) {
 
 func (s *InfluxDBStore) Close() {
 	if s.client != nil {
+		log.Println("Closing InfluxDB client...")
 		s.client.Close()
+		log.Println("InfluxDB client closed successfully")
 	}
 }
 
@@ -141,6 +143,7 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer result.Close() // CRITICAL: Close iterator
 
 	for result.Next() {
 		record := result.Value()
@@ -180,10 +183,15 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 		}
 	}
 
+	if result.Err() != nil {
+		return nil, result.Err()
+	}
+
 	result2, err := s.query(context.Background(), query2)
 	if err != nil {
 		return nil, err
 	}
+	defer result2.Close() // CRITICAL: Close iterator
 
 	summary.DietaryCalories = 0.0
 	for result2.Next() {
@@ -207,9 +215,6 @@ func (s *InfluxDBStore) GetSummary(date string) (*model.Summary, error) {
 		summary.DietaryCalories += floatValue
 	}
 
-	if result.Err() != nil {
-		return nil, result.Err()
-	}
 	if result2.Err() != nil {
 		return nil, result2.Err()
 	}
@@ -233,6 +238,7 @@ ORDER BY time`, start, stop)
 	if err != nil {
 		return nil, err
 	}
+	defer result.Close() // CRITICAL: Close iterator
 
 	var values []model.TimeSeriesValue
 	for result.Next() {
@@ -294,6 +300,7 @@ ORDER BY time ASC`, start, stop)
 		log.Printf("Blood pressure query error: %v", err)
 		return nil, err
 	}
+	defer result.Close() // CRITICAL: Close iterator
 
 	var bps []model.BloodPressure
 	for result.Next() {
@@ -358,6 +365,7 @@ ORDER BY time ASC`, start, stop)
 	if err != nil {
 		return nil, err
 	}
+	defer result.Close() // CRITICAL: Close iterator
 
 	var glucoses []model.Glucose
 	for result.Next() {
@@ -371,7 +379,12 @@ ORDER BY time ASC`, start, stop)
 			})
 		}
 	}
-	return glucoses, result.Err()
+
+	if result.Err() != nil {
+		return nil, result.Err()
+	}
+
+	return glucoses, nil
 }
 
 func (s *InfluxDBStore) GetSleep(endDate string) ([]model.Sleep, error) {
@@ -386,6 +399,7 @@ ORDER BY time ASC`, start, stop)
 	if err != nil {
 		return nil, err
 	}
+	defer result.Close() // CRITICAL: Close iterator
 
 	var sleeps []model.Sleep
 	for result.Next() {
@@ -409,7 +423,12 @@ ORDER BY time ASC`, start, stop)
 			})
 		}
 	}
-	return sleeps, result.Err()
+
+	if result.Err() != nil {
+		return nil, result.Err()
+	}
+
+	return sleeps, nil
 }
 
 func (s *InfluxDBStore) GetWorkouts(date string) ([]model.Workout, error) {
@@ -424,6 +443,7 @@ ORDER BY time ASC`, start, stop)
 	if err != nil {
 		return nil, err
 	}
+	defer result.Close() // CRITICAL: Close iterator
 
 	workoutsMap := make(map[string]model.Workout)
 	var workoutIDs []string
@@ -459,6 +479,7 @@ ORDER BY time ASC`, start, stop)
 	if err != nil {
 		return nil, err
 	}
+	defer hrResult.Close() // CRITICAL: Close iterator
 
 	for hrResult.Next() {
 		record := hrResult.Value()
@@ -507,6 +528,7 @@ func (s *InfluxDBStore) GetDietaryTrends(endDate string) ([]model.DietaryTrend, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to query nutrient %s: %w", nutrient, err)
 		}
+		defer result.Close() // CRITICAL: Close iterator
 
 		for result.Next() {
 			record := result.Value()
@@ -614,6 +636,7 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 	if err != nil {
 		return nil, fmt.Errorf("weight query error: %w", err)
 	}
+	defer weightResult.Close() // CRITICAL: Close iterator
 
 	for weightResult.Next() {
 		record := weightResult.Value()
@@ -636,6 +659,7 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 	if err != nil {
 		return nil, fmt.Errorf("body fat query error: %w", err)
 	}
+	defer bfResult.Close() // CRITICAL: Close iterator
 
 	for bfResult.Next() {
 		record := bfResult.Value()
@@ -646,7 +670,7 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 		if okTime && okBF {
 			if weight, ok := weightMap[t]; ok {
 				compositions = append(compositions, model.BodyComposition{
-					T: t,
+					T:       t,
 					Time:    t.In(easternZone).Format("Jan 02"),
 					Weight:  weight,
 					BodyFat: bodyFat,
@@ -655,16 +679,15 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 		}
 	}
 
-	log.Printf("Found %d composition records", len(compositions))
-
-
 	if bfResult.Err() != nil {
+		log.Printf("Body fat iteration error: %v", bfResult.Err())
 		return nil, bfResult.Err()
 	}
 
+	log.Printf("Found %d composition records", len(compositions))
+
 	// Sort results by time ascending
 	sort.Slice(compositions, func(i, j int) bool {
-		// Note: This sorts by string representation, which is fine for "Jan 02" format within the same year
 		return compositions[i].T.Before(compositions[j].T)
 	})
 
@@ -672,9 +695,8 @@ func (s *InfluxDBStore) GetBodyComposition(endDate string) ([]model.BodyComposit
 		t := value.T.Format(time.RFC3339)
 		w := value.Weight
 		b := value.BodyFat
-		log.Printf("comp records: time = %s, weight= %d, bf= %d\n", t, w, b)
-    }
-
+		log.Printf("comp records: time = %s, weight= %f, bf= %f\n", t, w, b)
+	}
 
 	return compositions, nil
 }
