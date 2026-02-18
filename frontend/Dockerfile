@@ -38,7 +38,7 @@ COPY nginx-unprivileged.conf /etc/nginx/conf.d/default.conf
 COPY nginx-security.conf /etc/nginx/conf.d/security.conf
 
 # Copy built assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist/ /usr/share/nginx/html/
 
 # Set proper permissions
 RUN chown -R nginx:nginx /usr/share/nginx/html
